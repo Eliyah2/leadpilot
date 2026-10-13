@@ -98,6 +98,11 @@ async function newLead() {
     toastError(error.message ?? 'Er ging iets mis bij het zoeken.');
   } finally {
     searching = false;
+    // Belangrijk: de knop is tijdens het zoeken uitgegrijsd op basis van
+    // state.current.loading. Zonder deze laatste render blijft hij uitgegrijsd
+    // staan en lijkt de app niet meer te reageren.
+    if (store.state.current.loading) store.setCurrent({ loading: false }, { silent: true });
+    store.emit();
   }
 }
 
@@ -415,8 +420,8 @@ function toolbar(state) {
   const stats = store.state.settings;
   return html`
     <div class="view-toolbar">
-      <button type="button" class="btn btn-primary" data-action="new-lead" ${searching ? 'disabled' : ''}>
-        Nieuwe lead <kbd>N</kbd>
+      <button type="button" class="btn btn-primary" data-action="new-lead" ${state.current.loading ? 'disabled' : ''}>
+        ${state.current.loading ? 'Bezig met zoeken...' : html`Nieuwe lead <kbd>N</kbd>`}
       </button>
       <span class="muted">
         ${search ? html`${search.nicheLabel} in ${search.regionLabel} (${search.country}${search.radius ? `, ${Math.round(search.radius / 1000)} km` : ''})` : 'Nog geen zoekopdracht'}
@@ -594,6 +599,11 @@ export const leadView = {
     const body = html`
       ${toolbar(state)}
       ${legalWarning(state)}
+      ${state.current.demo ? html`<div class="notice notice-warn">
+            <strong>Demo-modus actief</strong> - er is nog geen GOOGLE_PLACES_API_KEY ingesteld in Vercel, dus LeadPilot kan nog geen echte bedrijven ophalen.
+            Gebruik hieronder de zoeklinks met CSV-import, of zet de sleutel in Vercel (Settings &rarr; Environment Variables) en redeploy.
+            De knop <em>Nieuwe lead</em> blijft gewoon werken.
+          </div>` : ''}
       ${state.current.loading ? loadingState(state) : ''}
       ${!state.current.loading && state.current.error ? html`<div class="card empty-state"><h2>Er ging iets mis</h2><p>${state.current.error}</p>
         <button type="button" class="btn btn-primary" data-action="new-lead">Opnieuw proberen</button></div>` : ''}

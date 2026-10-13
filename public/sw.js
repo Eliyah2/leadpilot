@@ -10,7 +10,7 @@
  *   - Statische bestanden (css/js/png/svg/manifest): cache-first met update op
  *     de achtergrond.
  */
-const VERSION = 'leadpilot-v1';
+const VERSION = 'leadpilot-v2';
 const STATIC_CACHE = `${VERSION}-static`;
 
 const SHELL = ['/', '/index.html', '/css/styles.css', '/manifest.webmanifest', '/icons/icon.svg'];
@@ -41,6 +41,11 @@ function isStaticRequest(url) {
   );
 }
 
+/** Code en opmaak moeten altijd vers zijn; afbeeldingen mogen uit de cache. */
+function isCodeRequest(url) {
+  return /\.(js|mjs|css|webmanifest)$/i.test(url.pathname);
+}
+
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
@@ -66,7 +71,23 @@ self.addEventListener('fetch', (event) => {
 
   if (!isStaticRequest(url)) return;
 
-  // Statische bestanden: uit cache, en op de achtergrond verversen.
+  // JavaScript en CSS: altijd eerst het netwerk. Zo zie je na een nieuwe
+  // deploy direct de nieuwste versie en nooit een oude versie uit de cache.
+  if (isCodeRequest(url)) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, copy)).catch(() => {});
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Overige bestanden (iconen, afbeeldingen): uit de cache, met update op de
+  // achtergrond. Dat is snel en hier mag het iets ouder zijn.
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)
