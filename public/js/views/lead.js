@@ -53,6 +53,7 @@ async function newLead() {
         demo: result.message,
         searchLinks: result.searchLinks ?? [],
         search: result.search,
+        quota: result.quota ?? null,
       });
       store.setUi({ scanProgress: null });
       return;
@@ -96,6 +97,9 @@ async function newLead() {
       loading: false,
       error: null,
       empty: null,
+      // Het verbruik van vandaag, zodat je ziet dat je binnen de gratis
+      // ruimte bij Google blijft. Zonder dit blijft de chip in de werkbalk leeg.
+      quota: result.quota ?? null,
       brandMismatch: result.brandMismatch ?? null,
       broadened: Boolean(result.broadened),
       broadenedInfo: result.broadened
@@ -448,6 +452,12 @@ function toolbar(state) {
   const search = state.current.search;
   const quota = state.current.quota;
   const stats = store.state.settings;
+  // Verbruik van vandaag bij Google. De daglimiet bestaat om je gratis tegoed
+  // niet te overschrijden: Google geeft per maand 1.000 gratis zoekopdrachten
+  // op dit niveau, dus met 30 per dag blijf je daar altijd onder.
+  const gebruikt = Number(quota?.searchesToday ?? 0);
+  const limiet = Number(quota?.searchLimit ?? 0);
+  const bijnaOp = limiet > 0 && gebruikt / limiet >= 0.8;
   return html`
     <div class="view-toolbar">
       <button type="button" class="btn btn-primary" data-action="new-lead" ${state.current.loading ? 'disabled' : ''}>
@@ -461,7 +471,14 @@ function toolbar(state) {
         ? html`<span class="chip" title="Google staat maximaal 50 km toe voor een zoekcirkel">${search.requestedRadiusKm} km gevraagd, ${search.radiusKmUsed} km gebruikt</span>`
         : ''}
       <span class="muted small">Dagdoel: ${stats.dailyGoal} mails</span>
-      ${quota?.searchLimit ? html`<span class="chip">Zoekopdrachten vandaag: ${quota.searchesToday}/${quota.searchLimit}</span>` : ''}
+      ${limiet > 0
+        ? html`<span
+            class="chip ${bijnaOp ? 'chip-warn' : ''}"
+            title="Hiermee blijf je gratis: Google geeft per maand 1.000 gratis zoekopdrachten op dit niveau. Aan te passen met MAX_SEARCHES_PER_DAY in Vercel."
+          >
+            Google-zoekopdrachten vandaag: ${gebruikt}/${limiet}${bijnaOp ? ' - bijna op' : ''}
+          </span>`
+        : ''}
     </div>
   `;
 }
