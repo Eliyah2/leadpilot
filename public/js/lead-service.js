@@ -397,6 +397,9 @@ export async function fetchNextLead({ settings, seenPlaceIds = new Set(), onProg
         searchLinks: response.searchLinks ?? [],
         message: response.message ?? 'Demo-modus: geen Google Places-sleutel ingesteld.',
         search: step,
+        // Ook zonder sleutel tonen we de daglimiet, zodat je meteen ziet
+        // hoeveel ruimte je hebt zodra de sleutel er wél is.
+        quota: response.quota ?? null,
       };
     }
 

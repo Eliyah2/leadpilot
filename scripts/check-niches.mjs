@@ -576,10 +576,21 @@ export async function checkColdLeadGuarantee() {
       mode: 'demo',
       searchLinks: [{ label: 'Zoek op Google Maps', url: 'https://www.google.com/maps/search/kapper' }],
       message: 'Geen GOOGLE_PLACES_API_KEY ingesteld.',
-      quota: {},
+      // Zoals de echte API ook antwoordt in demo-modus.
+      quota: { searchesToday: 0, searchLimit: 100 },
     });
     const demo = await fetchNextLead({ settings: settingsFor('kapper') });
     if (demo.kind !== 'demo' || !demo.searchLinks?.length) problems.push('de demo-modus wordt niet goed doorgegeven aan de UI');
+    // Zonder dit blijft het verbruik in de werkbalk leeg en zie je niet dat je
+    // binnen de gratis ruimte bij Google blijft.
+    if (!demo.quota?.searchLimit) problems.push('de demo-modus geeft de daglimiet niet door aan de werkbalk');
+
+    // Bij een echte lead hoort het verbruik van vandaag ook mee te komen.
+    stub(() => [kapsalon]);
+    const metQuota = await fetchNextLead({ settings: settingsFor('kapper') });
+    if (metQuota.kind !== 'lead' || !metQuota.quota?.searchLimit) {
+      problems.push('het Google-verbruik van vandaag komt niet mee met een gevonden lead');
+    }
   } finally {
     api.fetchLeads = origineel;
   }
