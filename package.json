@@ -1,0 +1,28 @@
+{
+  "name": "leadpilot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LeadPilot - leadgenerator met online-analyse en kant-en-klare cold e-mails voor Eliyah Webdesign",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "dev:vercel": "vercel dev",
+    "start": "node scripts/dev-server.mjs",
+    "test": "node scripts/validate.mjs",
+    "validate": "node scripts/validate.mjs",
+    "push": "node scripts/push.mjs",
+    "deploy": "node scripts/deploy.mjs"
+  },
+  "keywords": [
+    "leadgeneratie",
+    "cold-email",
+    "vercel",
+    "serverless",
+    "google-places"
+  ],
+  "author": "Eliyah Webdesign",
+  "license": "UNLICENSED"
+}
