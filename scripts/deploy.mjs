@@ -11,7 +11,7 @@
  *
  * Gebruik: npm run deploy
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,28 +28,22 @@ try {
 console.log('\nStap 2: controleren of de Vercel CLI er is\n');
 let vercelAvailable = false;
 /**
- * Op Windows is `vercel` een .cmd-bestand, dat Node niet direct kan starten.
- * Daarom proberen we beide namen; op macOS en Linux is dat gewoon `vercel`.
+ * Let op (Windows): `vercel` is daar een .cmd-bestand en dat kan Node alleen
+ * via de shell starten. execSync doet dat op elk besturingssysteem goed.
  */
-const VERCEL_COMMANDS = process.platform === 'win32' ? ['vercel.cmd', 'vercel'] : ['vercel'];
-
 function findVercel() {
-  for (const command of VERCEL_COMMANDS) {
-    try {
-      const output = execFileSync(command, ['--version'], { encoding: 'utf8', stdio: 'pipe' });
-      return { command, version: String(output ?? '').trim().replace(/^Vercel CLI\s*/, '') || 'versie onbekend' };
-    } catch (error) {
-      if (error.code === 'ENOENT') continue; // niet gevonden: volgende naam proberen
-      return { command, version: 'versie onbekend' };
-    }
+  try {
+    const output = execSync('vercel --version', { encoding: 'utf8', stdio: 'pipe' });
+    return { version: String(output ?? '').trim().split('\n')[0].replace(/^Vercel CLI\s*/, '') || 'versie onbekend' };
+  } catch {
+    return null;
   }
-  return null;
 }
 
 const vercelCli = findVercel();
 try {
   if (!vercelCli) throw new Error('niet gevonden');
-  console.log(`Vercel CLI gevonden (${vercelCli.command}, ${vercelCli.version}).`);
+  console.log(`Vercel CLI gevonden (versie ${vercelCli.version}).`);
   vercelAvailable = true;
 } catch {
   console.log('Vercel CLI niet gevonden of niet uitvoerbaar. Deploy via GitHub gebeurt automatisch.');
@@ -63,7 +57,7 @@ if (!vercelAvailable) {
 
 console.log('\nStap 3: handmatige productie-deploy met Vercel\n');
 try {
-  execFileSync(vercelCli.command, ['--prod', '--yes'], { stdio: 'inherit' });
+  execSync('vercel --prod --yes', { stdio: 'inherit' });
   console.log('\nDeploy klaar.');
 } catch (error) {
   console.error('\nDe Vercel-deploy is mislukt.');
