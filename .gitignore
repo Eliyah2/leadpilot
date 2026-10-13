@@ -27,3 +27,5 @@ Thumbs.db
 exports/
 backups/
 leadpilot-backup*.json
+
+.vercel

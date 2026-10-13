@@ -221,6 +221,14 @@ Vanaf nu geldt:
 - een push naar **main** → automatisch naar **productie**;
 - een push naar een andere branch → een **preview-URL** in Vercel.
 
+**De live-URL van dit project is <https://leadpilot-ten-blush.vercel.app>.**
+(Let op: `leadpilot.vercel.app` is van iemand anders, dus die korte naam is niet beschikbaar.)
+
+> **Deployment Protection:** de lange alias `leadpilot-eliyah-impelmans-projects.vercel.app` zit achter
+> *Vercel Authentication* (je krijgt dan een inlogscherm van Vercel). Het hoofddomein
+> `leadpilot-ten-blush.vercel.app` is gewoon openbaar. Wil je alles openbaar hebben, zet dan in Vercel
+> **Settings → Deployment Protection → Vercel Authentication → Disabled**.
+
 Handmatig deployen kan ook (als de Vercel CLI geïnstalleerd en ingelogd is):
 
 ```bash
