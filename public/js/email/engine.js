@@ -148,21 +148,28 @@ function openingsFor(language, category) {
   return table[category] ?? table.overig;
 }
 
-/** Kort de mail in tot maximaal 120 woorden zonder dat het onsamenhangend wordt. */
-function enforceWordLimit(paragraphs, maxWords = MAX_WORDS) {
-  const list = [...paragraphs];
-  const totalWords = () => countWords(list.filter(Boolean).join(' '));
-  // Eerst de afsluitende zin, dan de oplossing, dan het probleem inkorten.
-  while (totalWords() > maxWords && list.length > 5) {
-    list.splice(list.length - 3, 1);
+/**
+ * Zet de onderdelen in de juiste volgorde en kort in tot maximaal 120 woorden.
+ * We laten nooit de aanhef, de personalisatie, de call-to-action, de
+ * handtekening of de afmeldregel weg: die zijn het belangrijkst. Wat als eerste
+ * sneuvelt is de afsluitende zin, daarna de oplossingszin, en pas als laatste
+ * wordt het probleem tot één zin ingekort.
+ */
+function assemble(parts, maxWords = MAX_WORDS) {
+  const order = ['greeting', 'personal', 'opening', 'problem', 'value', 'cta', 'closing', 'signature', 'optOut'];
+  const current = { ...parts };
+  const text = () => order.map((key) => current[key]).filter(Boolean).join('\n\n');
+
+  ['closing', 'value'].forEach((key) => {
+    if (countWords(text()) <= maxWords) return;
+    current[key] = '';
+  });
+
+  if (countWords(text()) > maxWords && current.problem) {
+    current.problem = String(current.problem).split('. ').slice(0, 1).join('. ');
   }
-  if (totalWords() > maxWords) {
-    const problemIndex = 2;
-    if (list[problemIndex]) {
-      list[problemIndex] = String(list[problemIndex]).split('. ').slice(0, 1).join('. ');
-    }
-  }
-  return list;
+
+  return text().replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**
@@ -208,45 +215,59 @@ export function buildEmail({ lead, audit = null, settings, kind = 'eerste', vari
     return 0;
   };
 
-  let subjectIndex = pickIndex(subjectOptions, 0);
-  let openingIndex = pickIndex(openingOptions, 1);
+  const subjectIndex = pickIndex(subjectOptions, 0);
+  const openingIndex = pickIndex(openingOptions, 1);
   const valueIndex = pickIndex(valueOptions, 2);
   const ctaIndex = pickIndex(ctaOptions, 3);
   const closingIndex = 0;
   const problemIndex = seed % problemList.length;
 
   const firstName = vars.firstName;
-  let subject = kind === 'eerste' ? fitSubject(subjectOptions[subjectIndex], vars) : '';
-  let greeting = greetingFor(pack, tone, firstName, seed);
+  const greeting = greetingFor(pack, tone, firstName, seed);
+  const signature = fill(pack.signature[tone] ?? pack.signature.formeel, vars);
+  const optOut = fill(pack.optOut[tone] ?? pack.optOut.formeel, vars);
 
-  const paragraphs = [];
+  let subject;
+  let parts;
+
   if (kind === 'eerste') {
-    paragraphs.push(
+    subject = fitSubject(subjectOptions[subjectIndex], vars);
+    parts = {
       greeting,
-      fill(openingOptions[openingIndex] ?? '', vars),
-      fill(problemList[problemIndex] ?? '', vars),
-      fill(valueOptions[valueIndex] ?? '', vars),
-      fill(ctaOptions[ctaIndex] ?? '', vars),
-      fill(closingOptions[closingIndex] ?? '', vars),
-      fill(pack.signature[tone] ?? pack.signature.formeel, vars),
-      fill(pack.optOut[tone] ?? pack.optOut.formeel, vars)
-    );
+      personal: '',
+      opening: fill(openingOptions[openingIndex] ?? '', vars),
+      problem: fill(problemList[problemIndex] ?? '', vars),
+      value: fill(valueOptions[valueIndex] ?? '', vars),
+      cta: fill(ctaOptions[ctaIndex] ?? '', vars),
+      closing: fill(closingOptions[closingIndex] ?? '', vars),
+      signature,
+      optOut,
+    };
   } else {
     const followUp = pack.followUps[kind] ?? pack.followUps.followup1;
-    const subjectTemplate = followUp.subjects[seed % followUp.subjects.length];
-    subject = fitSubject(subjectTemplate, vars);
-    paragraphs.push(
+    subject = fitSubject(followUp.subjects[seed % followUp.subjects.length], vars);
+    parts = {
       greeting,
-      fill(followUp.openings[seed % followUp.openings.length], vars),
-      fill(followUp.bodies[(seed + 1) % followUp.bodies.length], vars),
-      fill(pack.signature[tone] ?? pack.signature.formeel, vars),
-      fill(pack.optOut[tone] ?? pack.optOut.formeel, vars)
-    );
-    greeting = paragraphs[0];
+      personal: '',
+      opening: fill(followUp.openings[seed % followUp.openings.length], vars),
+      problem: fill(followUp.bodies[(seed + 1) % followUp.bodies.length], vars),
+      value: '',
+      cta: '',
+      closing: '',
+      signature,
+      optOut,
+    };
   }
 
-  const limited = enforceWordLimit(paragraphs);
-  const body = limited.filter((part) => part !== '').join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+  // Garantie: de bedrijfsnaam staat in de tekst. Anders is het geen
+  // persoonlijke mail maar een standaardbericht. Alleen als geen enkel
+  // onderdeel de naam noemt, voegen we de persoonlijke regel toe.
+  const mentionCheck = [parts.opening, parts.problem, parts.value, parts.cta, parts.closing].join(' ');
+  if (vars.company && !mentionCheck.includes(vars.company) && pack.personalLine) {
+    parts.personal = fill(pack.personalLine, vars);
+  }
+
+  const body = assemble(parts);
 
   const key = `${language}-${category}-${problemKey}-s${subjectIndex}-o${openingIndex}-c${ctaIndex}-${kind}`;
 

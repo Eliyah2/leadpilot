@@ -3,6 +3,15 @@
    Licht en donker thema via CSS-variabelen. Geen externe fonts of libraries.
    ══════════════════════════════════════════════════════════════════════ */
 
+/* ── Elementen met het `hidden`-attribuut zijn ECHT verborgen ─────────────
+   Zonder deze regel wint een class zoals `.login-overlay { display: grid }` van
+   het `hidden`-attribuut (class-regels gaan vóór de standaardregels van de
+   browser). Dan ligt er een egaal paneel over de hele app dat alle kliks
+   opvangt: de app lijkt "niets te doen" terwijl hij gewoon werkt. */
+[hidden] {
+  display: none !important;
+}
+
 :root {
   color-scheme: light dark;
 

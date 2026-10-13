@@ -21,6 +21,9 @@ export const FIELD_MASK = [
   'places.rating',
   'places.userRatingCount',
   'places.businessStatus',
+  // primaryType is de machinaal leesbare branche (bijv. 'hair_salon').
+  // Dit zit in hetzelfde tarief als displayName, dus het kost niets extra.
+  'places.primaryType',
   'places.primaryTypeDisplayName',
   'places.regularOpeningHours.weekdayDescriptions',
   'places.location',
@@ -72,15 +75,19 @@ export async function searchPlaces({
     textQuery: query,
     languageCode,
     regionCode,
-    maxResultCount: Math.min(Math.max(maxResults, 1), 20),
-    // Alleen bedrijven die daadwerkelijk open zijn (scheelt ruis in je lijst).
-    openNow: false,
+    // Google raadt pageSize aan; maxResultCount is verouderd. Maximaal 20.
+    pageSize: Math.min(Math.max(maxResults, 1), 20),
   };
+  // openNow alleen meesturen als we er echt op willen filteren: een filter dat
+  // niets toevoegt kan bij sommige zoekopdrachten juist resultaten weghalen.
+  // locationBias (geen locationRestriction): beïnvloedt de volgorde, maar sluit
+  // bedrijven net buiten de cirkel niet uit. De straal moet van Google tussen
+  // 0 en 50.000 meter liggen.
   if (lat && lng) {
     body.locationBias = {
       circle: {
         center: { latitude: Number(lat), longitude: Number(lng) },
-        radius: Math.min(Math.max(Number(radius) || 10000, 500), 50000),
+        radius: Math.min(Math.max(Number(radius) || 10000, 500), 50_000),
       },
     };
   }
@@ -149,6 +156,7 @@ export function normalizePlace(place) {
     rating: typeof place.rating === 'number' ? place.rating : null,
     reviews: typeof place.userRatingCount === 'number' ? place.userRatingCount : null,
     businessStatus: place.businessStatus ?? '',
+    primaryType: place.primaryType ?? '',
     openingHours: Array.isArray(hours) ? hours : [],
     lat: place.location?.latitude ?? null,
     lng: place.location?.longitude ?? null,

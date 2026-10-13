@@ -68,7 +68,16 @@ async function newLead() {
         searchLinks: [],
         search: result.search,
         error: null,
-        empty: { message: result.message, exhausted: result.exhausted, filteredOut: result.filteredOut, allSeen: result.allSeen },
+        broadened: false,
+        broadenedInfo: null,
+        brandMismatch: null,
+        empty: {
+          message: result.message,
+          exhausted: result.exhausted,
+          filteredOut: result.filteredOut,
+          allSeen: result.allSeen,
+          attempts: result.attempts ?? [],
+        },
       });
       store.setUi({ scanProgress: null });
       return;
@@ -87,6 +96,16 @@ async function newLead() {
       loading: false,
       error: null,
       empty: null,
+      brandMismatch: result.brandMismatch ?? null,
+      broadened: Boolean(result.broadened),
+      broadenedInfo: result.broadened
+        ? {
+            reason: result.broadenedReason ?? '',
+            query: result.search.q,
+            firstQuery: result.attempts?.[0]?.query ?? result.search.q,
+            attempts: result.attempts ?? [],
+          }
+        : null,
     });
     store.setUi({ scanProgress: null });
     const email = ensureEmail(store.state, 'eerste');
@@ -371,10 +390,21 @@ function channelsBlock(state) {
 
 function emptyState(state) {
   const empty = state.current.empty;
+  const attempts = empty?.attempts ?? [];
   return html`
     <div class="card empty-state">
       <h2>Geen lead gevonden</h2>
       <p>${empty?.message ?? 'Er zijn geen resultaten gevonden.'}</p>
+      ${attempts.length > 1
+        ? html`<details>
+            <summary>Wat de app geprobeerd heeft</summary>
+            <ul class="plain small">
+              ${attempts.map(
+                (attempt) => html`<li>"${attempt.query}" - ${attempt.results === 0 ? 'geen resultaten' : `${attempt.results} resultaten, maar niet bruikbaar`} (${attempt.reason})</li>`
+              )}
+            </ul>
+          </details>`
+        : ''}
       <div class="lead-actions">
         <button type="button" class="btn btn-primary" data-action="new-lead">Opnieuw zoeken (N)</button>
         ${empty?.allSeen || empty?.exhausted
@@ -427,8 +457,76 @@ function toolbar(state) {
         ${search ? html`${search.nicheLabel} in ${search.regionLabel} (${search.country}${search.radius ? `, ${Math.round(search.radius / 1000)} km` : ''})` : 'Nog geen zoekopdracht'}
       </span>
       <span class="spacer"></span>
+      ${search?.radiusKmUsed && search?.requestedRadiusKm && search.radiusKmUsed < search.requestedRadiusKm
+        ? html`<span class="chip" title="Google staat maximaal 50 km toe voor een zoekcirkel">${search.requestedRadiusKm} km gevraagd, ${search.radiusKmUsed} km gebruikt</span>`
+        : ''}
       <span class="muted small">Dagdoel: ${stats.dailyGoal} mails</span>
       ${quota?.searchLimit ? html`<span class="chip">Zoekopdrachten vandaag: ${quota.searchesToday}/${quota.searchLimit}</span>` : ''}
+    </div>
+  `;
+}
+
+/**
+ * Waarschuwingen boven de lead: opgeslagen keuze bestaat niet meer, of er is
+ * ruimer gezocht dan gevraagd. Allebei zichtbaar, zodat je nooit denkt dat er
+ * voor jouw niche niets is terwijl er met iets anders is gezocht.
+ */
+function searchWarnings(state) {
+  const search = state.current.search;
+  const parts = [];
+  if (search?.nicheMissing) {
+    parts.push(html`<div class="notice notice-warn">
+      <strong>Let op:</strong> de niche die in je instellingen stond, bestaat niet meer (bijvoorbeeld na het terugzetten van een back-up).
+      Er is nu gezocht met <strong>${search.nicheLabel}</strong>. Kies in de instellingen opnieuw je niche.
+    </div>`);
+  }
+  if (search?.regionMissing) {
+    parts.push(html`<div class="notice notice-warn">
+      <strong>Let op:</strong> de regio die in je instellingen stond, bestaat niet meer. Er is nu gezocht in
+      <strong>${search.regionLabel}</strong>. Kies in de instellingen opnieuw je regio.
+    </div>`);
+  }
+  return parts;
+}
+
+/**
+ * Melding wanneer Google het bedrijf in een andere branche indeelt dan je zocht
+ * (bijvoorbeeld een snackbar bij de zoekterm "kapsalon"). Dit is het enige
+ * resultaat dat we konden vinden, dus we tonen het wel - maar met een eerlijke
+ * waarschuwing, zodat je niet per ongeluk de verkeerde branche mailt.
+ */
+function branchWarning(state) {
+  const info = state.current.brandMismatch;
+  if (!info) return '';
+  const found = info.branchLabel ? `"${info.branchLabel}"` : 'een andere branche';
+  return html`
+    <div class="notice notice-warn">
+      <strong>Controleer de branche.</strong>
+      <span>
+        Voor "${info.nicheLabel}" vond Google geen enkel bedrijf in die branche. Dit bedrijf staat bij Google onder
+        ${found}. Misschien is het de verkeerde branche - bekijk het bedrijf even voordat je mailt, of kies een andere
+        regio of zoekterm in de instellingen.
+      </span>
+    </div>
+  `;
+}
+
+/** Melding wanneer de lead uit een ruimere zoekopdracht komt. */
+function broadenedNotice(state) {
+  const info = state.current.broadenedInfo;
+  if (!info) return '';
+  // Als de zoekterm hetzelfde blijft (alleen de straal of de plaats vervalt),
+  // herhalen we de zoekopdracht niet - dat leest alleen maar verwarrend.
+  const andereQuery = info.query && info.query !== info.firstQuery;
+  return html`
+    <div class="notice notice-warn">
+      <strong>Ruimer gezocht.</strong>
+      <span>
+        Voor "${info.firstQuery}" vond Google niets bruikbaars, daarom is nu gezocht met ${info.reason}${andereQuery
+          ? html` ("${info.query}")`
+          : ''}.
+        Deze lead kan dus net buiten je gekozen regio of straal vallen - controleer de plaats voordat je mailt.
+      </span>
     </div>
   `;
 }
@@ -598,6 +696,8 @@ export const leadView = {
 
     const body = html`
       ${toolbar(state)}
+      ${searchWarnings(state)}
+      ${branchWarning(state)} ${broadenedNotice(state)}
       ${legalWarning(state)}
       ${state.current.demo ? html`<div class="notice notice-warn">
             <strong>Demo-modus actief</strong> - er is nog geen GOOGLE_PLACES_API_KEY ingesteld in Vercel, dus LeadPilot kan nog geen echte bedrijven ophalen.

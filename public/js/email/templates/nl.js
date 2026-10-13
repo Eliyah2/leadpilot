@@ -117,6 +117,12 @@ export const lang = {
     formeel: ['Ik hoor graag wat u ervan vindt.', 'Laat u me weten of dit zinvol klinkt?', 'Geen haast, maar ik hoor het graag van u.'],
   },
 
+  /**
+   * Persoonlijke regel die alleen wordt toegevoegd als de bedrijfsnaam nog
+   * nergens in de tekst staat. Zo staat er altijd iets over hun eigen zaak in.
+   */
+  personalLine: 'Ik heb even naar {{company}} in {{city}} gekeken.',
+
   /** Afmeldregel - verplicht in elke mail. */
   optOut: {
     informeel: 'Geen interesse? Laat het me even weten, dan mail ik je niet meer.',

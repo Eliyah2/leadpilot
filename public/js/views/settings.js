@@ -27,9 +27,9 @@ function nicheOptions(settings) {
     <optgroup label="Willekeurig">
       <option value="random" ${settings.nicheId === 'random' ? 'selected' : ''}>Willekeurige niche</option>
     </optgroup>
-    <optgroup label="Vaste niches">
-      ${NICHES.map(
-        (niche) => html`<option value="${niche.id}" ${settings.nicheId === niche.id ? 'selected' : ''}>
+    <optgroup label="Vaste niches">          ${NICHES.map(
+        (niche) => html`<option value="${niche.id}" ${settings.nicheId === niche.id ? 'selected' : ''}
+          title="NL: ${niche.terms.nl}${niche.alt?.nl ? ` / ${niche.alt.nl}` : ''} · DE: ${niche.terms.de}${niche.alt?.de ? ` / ${niche.alt.de}` : ''}">
           ${niche.label} (${niche.terms.nl} / ${niche.terms.de})
         </option>`
       )}
@@ -176,6 +176,11 @@ export const settingsView = {
 
       <section class="card">
         <h3>Zoeken</h3>
+        <p class="muted small">
+          Vindt een zoekopdracht niets bruikbaars, dan probeert LeadPilot automatisch de alternatieve branchenaam
+          (bijvoorbeeld "Herrenfriseur" naast "Barbershop"), daarna dezelfde zoekopdracht zonder straalbeperking en
+          als laatste heel het land. Je krijgt dus altijd te zien wat er geprobeerd is.
+        </p>
         <div class="settings-grid">
           <label class="field">
             <span>Niche</span>
@@ -192,6 +197,7 @@ export const settingsView = {
                 (radius) => html`<option value="${radius}" ${Number(settings.radiusKm) === radius ? 'selected' : ''}>${radius} km</option>`
               )}
             </select>
+            <span class="muted small">Google staat maximaal 50 km toe; bij 100 km zoekt LeadPilot met 50 km.</span>
           </label>
           <label class="field">
             <span>Filter op lead-kwaliteit</span>

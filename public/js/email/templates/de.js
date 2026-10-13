@@ -103,6 +103,9 @@ export const lang = {
     informeel: ['Ich freue mich über deine Rückmeldung.', 'Sag mir gerne, ob das für dich sinnvoll klingt.', 'Kein Stress - ich freue mich über eine kurze Antwort.'],
   },
 
+/** Alleen toegevoegd als de bedrijfsnaam nog niet in de tekst staat. */
+  personalLine: 'Ich habe mir {{company}} in {{city}} kurz angesehen.',
+
   optOut: {
     formeel: 'Kein Interesse? Schreiben Sie mir kurz, dann melde ich mich nicht wieder.',
     informeel: 'Kein Interesse? Schreib mir kurz, dann melde ich mich nicht wieder.',

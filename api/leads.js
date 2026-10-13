@@ -19,7 +19,7 @@ import crypto from 'node:crypto';
 import { checkAuth } from './_lib/auth.js';
 import { getConfig } from './_lib/config.js';
 import { cache } from './_lib/cache.js';
-import { checkBurst, checkDaily } from './_lib/rate-limit.js';
+import { checkBurst, checkDaily, peekDaily } from './_lib/rate-limit.js';
 import { searchPlaces, searchPlacesPaged } from './_lib/places.js';
 import {
   getClientIp,
@@ -85,6 +85,8 @@ async function collectParams(req) {
     lang: cleanText(merged.lang ?? 'nl', 5).toLowerCase(),
     country: cleanText(merged.country ?? 'NL', 2).toUpperCase(),
     want: Math.min(Math.max(Number.parseInt(merged.want, 10) || 10, 1), MAX_LEADS_PER_REQUEST),
+    // Hoeveel pagina's mogen er maximaal opgehaald worden voor deze aanvraag?
+    pages: Math.min(Math.max(Number.parseInt(merged.pages, 10) || 2, 1), MAX_PAGES),
     exclude: numbersFrom(merged.exclude).map((id) => cleanText(id, 120)).filter(Boolean).slice(0, MAX_EXCLUDE),
   };
 }
@@ -129,13 +131,19 @@ export default async function handler(req, res) {
   }
 
   // ── Daglimiet (kostenbeheersing) ────────────────────────────────────────
-  const daily = await checkDaily('searches', config.maxSearchesPerDay);
-  if (!daily.allowed) {
+  // We controleren hier vooraf (voor een snelle, vriendelijke melding) én bij
+  // elke echte Google-aanvraag hieronder, zodat de limiet het aantal échte
+  // Google-zoekopdrachten telt en niet alleen het aantal API-aanvragen.
+  // Let op: alleen LEZEN, niet ophogen. Het ophogen gebeurt bij elke echte
+  // Google-aanvraag in cachedCall hieronder; anders zou één zoekopdracht
+  // dubbel meetellen.
+  const usedToday = await peekDaily('searches');
+  if (usedToday >= config.maxSearchesPerDay) {
     return sendError(
       res,
       429,
       'daily_limit',
-      `De daglimiet van ${daily.limit} zoekopdrachten is bereikt. Pas MAX_SEARCHES_PER_DAY aan in Vercel als je meer wilt zoeken.`
+      `De daglimiet van ${config.maxSearchesPerDay} zoekopdrachten is bereikt. Pas MAX_SEARCHES_PER_DAY aan in Vercel als je meer wilt zoeken.`
     );
   }
 
@@ -146,9 +154,21 @@ export default async function handler(req, res) {
     const key = `lp:search:${hashKey({ callQuery, lat, lng, radius, lang: params.lang, country: params.country, pageToken: pageToken ?? '' })}`;
     const cached = await cache.get(key);
     if (cached) {
-      // Een gecachte pagina kost geen nieuwe Google-aanvraag.
+      // Een gecachte pagina kost geen nieuwe Google-aanvraag (en telt dus niet mee).
       return { ...cached, cached: true };
     }
+
+    const daily = await checkDaily('searches', config.maxSearchesPerDay);
+    if (!daily.allowed) {
+      return {
+        ok: false,
+        error: {
+          code: 'daily_limit',
+          message: `De daglimiet van ${daily.limit} zoekopdrachten is bereikt. Pas MAX_SEARCHES_PER_DAY aan in Vercel als je meer wilt zoeken.`,
+        },
+      };
+    }
+
     const result = await searchPlaces({
       apiKey: config.placesApiKey,
       query: callQuery,
@@ -176,12 +196,13 @@ export default async function handler(req, res) {
       regionCode: params.country,
       exclude,
       wantCount: params.want,
-      maxPages: MAX_PAGES,
+      maxPages: params.pages,
       cachedCall,
     });
 
     if (!result.ok) {
-      const status = result.error.code === 'places_quota' ? 429 : result.error.code === 'places_permission_denied' ? 403 : 502;
+      const statusByCode = { places_quota: 429, daily_limit: 429, places_permission_denied: 403 };
+      const status = statusByCode[result.error.code] ?? 502;
       return sendError(res, status, result.error.code, result.error.message, { details: result.error.details });
     }
 
@@ -197,7 +218,8 @@ export default async function handler(req, res) {
         cacheDriver: cache.driver,
         cacheTtlSeconds: config.searchCacheTtl,
       },
-      quota: { searchesToday: daily.used, searchLimit: daily.limit },
+      // Na deze aanvraag: het werkelijke verbruik van vandaag.
+      quota: { searchesToday: await peekDaily('searches'), searchLimit: config.maxSearchesPerDay },
     });
   } catch (error) {
     const timeout = error?.name === 'TimeoutError' || error?.name === 'AbortError';

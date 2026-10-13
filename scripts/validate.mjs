@@ -285,6 +285,57 @@ async function checkEmails() {
   return `${built} mails gebouwd, ${subjects.size}/12 uniek`;
 }
 
+// ── 3b. Elementen met het hidden-attribuut moeten echt verborgen blijven ──
+
+/**
+ * Dit is precies de fout die de app onbruikbaar maakte: het login-paneel had
+ * het `hidden`-attribuut, maar de stylesheet zette er `display: grid` op. Een
+ * class-regel gaat vóór de standaardregel van de browser, dus het paneel bleef
+ * staan: een egaal, onzichtbaar vlak over de hele app dat alle muisklikken
+ * opving. De app leek "niets te doen" en het scherm leek leeg, terwijl de code
+ * gewoon werkte (een klik via JavaScript werkte namelijk wel).
+ */
+async function checkHiddenElements() {
+  const html = fs.readFileSync(path.join(ROOT, 'public/index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'public/css/styles.css'), 'utf8');
+
+  const elementen = [...html.matchAll(/<([a-z0-9-]+)((?:\s[^>]*)?\shidden(?:\s[^>]*)?)>/gi)].map((match) => ({
+    tag: match[1].toLowerCase(),
+    classes: (match[2].match(/class="([^"]*)"/)?.[1] ?? '').split(/\s+/).filter(Boolean),
+  }));
+
+  assert(elementen.length > 0, 'geen enkel element met het hidden-attribuut gevonden - klopt index.html nog?');
+
+  const globaleRegel = /\[hidden\]\s*\{[^}]*display:\s*none/i.test(css);
+  assert(
+    globaleRegel,
+    `index.html heeft ${elementen.length} element(en) met "hidden", maar de stylesheet heeft geen [hidden]-regel. ` +
+      'Een class met "display:" kan zo\'n element zichtbaar maken: dan ligt er een onzichtbaar paneel over de app dat alle kliks opvangt.'
+  );
+
+  // Welke van die elementen hebben een class die zelf een display-waarde zet?
+  const risico = elementen.flatMap(({ classes }) =>
+    classes.filter((cls) => new RegExp(`\.${cls}[^,{]*\{[^}]*display:\s*(?!none)`, 'i').test(css)).map((cls) => `.${cls}`)
+  );
+
+  return `${elementen.length} element(en) met het hidden-attribuut blijven verborgen (${elementen
+    .map((e) => e.classes[0] || e.tag)
+    .join(', ')})${risico.length ? ` - ${risico.join(', ')} wordt door de [hidden]-regel tegengehouden` : ''}`;
+}
+
+// ── 4b. Elke niche in elke regio, en de hele keten tot een e-mail ────────
+
+async function checkAllNiches() {
+  const { checkNicheCoverage, checkLeadPipeline, checkNicheTerms, checkColdLeadGuarantee } = await import(
+    './check-niches.mjs'
+  );
+  const coverage = checkNicheCoverage();
+  const pipeline = checkLeadPipeline();
+  const terms = checkNicheTerms();
+  const guarantee = await checkColdLeadGuarantee();
+  return `${coverage}\n         ${pipeline}\n         ${terms}\n         ${guarantee}`;
+}
+
 // ── 5. CSV heen en weer ──────────────────────────────────────────────────
 
 async function checkCsv() {
@@ -498,6 +549,39 @@ async function checkApi() {
     assert(state.status === 501, `state zonder KV gaf ${state.status}, verwacht 501`);
     notes.push('KV-optioneel ok');
 
+    // De daglimiet moet het aantal échte Google-zoekopdrachten tellen, niet het
+    // aantal API-aanvragen. Met een onbruikbare sleutel faalt de aanvraag bij
+    // Google, maar de teller loopt wel op - daarna moet de limiet blokkeren.
+    process.env.GOOGLE_PLACES_API_KEY = 'test-sleutel-die-niet-werkt';
+    process.env.MAX_SEARCHES_PER_DAY = '1';
+    const eersteGoogleCall = await call('/api/leads', {
+      method: 'POST',
+      body: { q: 'kapper in Venlo', pages: 1 },
+      headers: { 'x-app-password': 'test-wachtwoord-123' },
+    });
+    assert(
+      eersteGoogleCall.status !== 429 || eersteGoogleCall.payload?.error?.code !== 'daily_limit',
+      'de eerste zoekopdracht werd al geblokkeerd door de daglimiet (teller telt dubbel)'
+    );
+    // De aanvraag moet echt bij Google zijn aangekomen (en dus geteld zijn) en
+    // mag niet op een andere fout zijn stukgelopen.
+    assert(
+      ['places_error', 'places_permission_denied', 'places_quota'].includes(eersteGoogleCall.payload?.error?.code),
+      `de aanvraag bereikte Google niet: status ${eersteGoogleCall.status}, code ${eersteGoogleCall.payload?.error?.code}`
+    );
+    const tweedeGoogleCall = await call('/api/leads', {
+      method: 'POST',
+      body: { q: 'kapper in Venlo', pages: 1 },
+      headers: { 'x-app-password': 'test-wachtwoord-123' },
+    });
+    assert(
+      tweedeGoogleCall.status === 429 && tweedeGoogleCall.payload?.error?.code === 'daily_limit',
+      `de daglimiet blokkeert niet (status ${tweedeGoogleCall.status}, code ${tweedeGoogleCall.payload?.error?.code})`
+    );
+    delete process.env.GOOGLE_PLACES_API_KEY;
+    delete process.env.MAX_SEARCHES_PER_DAY;
+    notes.push('daglimiet per Google-aanroep ok');
+
     // Cross-site POST moet geweigerd worden.
     const crossOrigin = await call('/api/leads', {
       method: 'POST',
@@ -519,8 +603,10 @@ console.log('LeadPilot - controle\n');
 
 await check('Syntaxcontrole JavaScript', checkSyntax);
 await check('Relatieve imports', checkImports);
+await check('Verborgen elementen echt verborgen', checkHiddenElements);
 await check('E-mailtemplates compleet', checkTemplates);
 await check('E-mails opbouwen en eisen', checkEmails);
+await check('Zoekplan, zoektermen en keten tot een lead per niche', checkAllNiches);
 await check('CSV export/import', checkCsv);
 await check('API-routes en beveiliging', checkApi);
 

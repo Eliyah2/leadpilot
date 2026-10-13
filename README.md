@@ -130,10 +130,27 @@ npm run dev:vercel        # vereist de Vercel CLI (npm i -g vercel)
 npm test
 ```
 
-Dit controleert de syntax van alle bestanden, of alle imports bestaan, of de e-mailtemplates
-compleet zijn (6+ varianten per niche per taal), of de mails binnen 120 woorden en 50 tekens blijven,
-of CSV-import werkt, en of alle API-routes echt antwoorden - inclusief de wachtwoordbeveiliging,
-de demo-modus en een echte website-analyse van een verouderde testpagina.
+Dit controleert in acht stappen:
+
+1. de syntax van alle bestanden en of alle imports bestaan;
+2. **of elementen die verborgen horen te zijn ook echt verborgen zijn.** Dit is geen theorie: het login-paneel had
+   het `hidden`-attribuut, maar de stylesheet zette er `display: grid` op. Een class-regel wint van de
+   standaardregel van de browser, dus er lag een egaal, onzichtbaar vlak over de hele app dat alle muisklikken
+   opving. De app leek dan "niets te doen" en het scherm leek leeg, terwijl de code werkte - een klik via
+   JavaScript deed het namelijk wél. Deze controle houdt dat tegen;
+3. of de e-mailtemplates compleet zijn (14 categorieën × 2 talen × 6+ varianten, plus follow-ups, WhatsApp, belscript en postkaarttekst);
+4. of de mails binnen de grenzen blijven en écht verschillen per lead (12 leads → 12 unieke mails);
+5. **of elke niche in elke regio een bruikbaar zoekplan heeft**: 23 niches × 17 regio's = 391 zoekplannen,
+   elk met minimaal twee pogingen, de juiste taal per land en alleen waarden die Google accepteert;
+6. of de hele keten van een rommelige Google-payload naar een kant-en-klare e-mail werkt voor alle
+   14 branches in beide talen (56 combinaties), inclusief bedrijven zonder telefoon, website of reviews;
+7. of CSV-export en -import heen en weer werken (puntkomma én komma);
+8. of alle API-routes echt antwoorden: wachtwoordbeveiliging, cookie, demo-modus, een échte website-analyse van
+   een verouderde testpagina, de daglimiet per Google-aanroep, de SSRF-bescherming en de same-origin-controle.
+
+Alles bij elkaar: **22 niches × 2 talen aan zoektermen en branche-indeling, 22 niches doorgerekend met een
+nagebootste Google** (ideaal resultaat, resultaat van de verkeerde branche, helemaal niets, en demo-modus),
+en 391 zoekplannen. Zo weet je vóór je gaat zoeken al dat elke niche een bruikbare zoekopdracht heeft.
 
 ---
 
@@ -154,10 +171,40 @@ de demo-modus en een echte website-analyse van een verouderde testpagina.
 ### Kosten laag houden
 
 - De app vraagt met een **veldmasker** alleen de velden op die nodig zijn.
-- Zoekresultaten worden **24 uur gecachet** (ook in Redis als je dat koppelt).
-- Er geldt een **daglimiet**: standaard 100 zoekopdrachten en 200 website-analyses per dag.
-- Website-analyses worden een week bewaard en vragen geen Google-verkeer.
-- Pas de limieten aan met `MAX_SEARCHES_PER_DAY` en `MAX_AUDITS_PER_DAY`.
+- Zoekresultaten worden **24 uur gecachet** (ook in Redis als je dat koppelt). Een gecachte pagina kost niets.
+- `MAX_SEARCHES_PER_DAY` (standaard 100) telt **echte Google-zoekopdrachten**, niet het aantal kliks.
+  Eén klik op "Nieuwe lead" doet maximaal 4 zoekopdrachten, waarvan de eerste 2 pagina's mag ophalen en de
+  ruimere pogingen elk 1 pagina. Vijf kliks kosten dus nooit meer dan 20 zoekopdrachten.
+- Website-analyses gaan niet via Google en worden een week bewaard; `MAX_AUDITS_PER_DAY` (standaard 200) begrenst ze.
+- Zonder `GOOGLE_PLACES_API_KEY` kost niets iets: dan werkt de app in demo-modus.
+
+---
+
+## 4b. Zoeken: van precies naar ruim (zodat je altijd leads vindt)
+
+Elke klik doorloopt automatisch een **zoekplan** van precies naar ruim. Je krijgt dus ook leads voor een niche
+waarvoor de eerste zoekopdracht niets oplevert:
+
+1. **De precieze zoekopdracht** - bijvoorbeeld `kapper in Venlo`, met een cirkel van je gekozen straal.
+2. **Dezelfde zoekopdracht zonder straalbeperking** - handig als het bedrijf net buiten je straal zit maar wel
+   de plaatsnaam in zijn profiel heeft. (Bij "heel Limburg" of "heel Nederland" wordt dit: dezelfde zoekterm
+   zónder plaatsnaam.)
+3. **De alternatieve branchenaam** - bijvoorbeeld `Herrenfriseur in Venlo` naast `Barbershop`, of `Gebäudereinigung`
+   naast `Reinigungsunternehmen`. Duitse bedrijven staan vaak onder een andere naam in Google dan je zou denken.
+4. **Heel het land** - als laatste redmiddel `kapper in Nederland` / `Friseur in Deutschland`.
+
+In de app zie je altijd **welke stap gelukt is** ("Ruimer gezocht: ...") en in de lege staat kun je openklappen
+wat er allemaal geprobeerd is. Zo weet je nooit onzeker of er niets is terwijl er iets anders werd gezocht.
+
+**Twee dingen die vastliggen:**
+
+- De **zoekterm volgt altijd de taal van het land** van je regio. Zoek je in Krefeld, dan zoekt de app met
+  `Friseur`, ook als je de e-mail handmatig in het Nederlands wilt.
+- Google staat maximaal **50 km** toe voor een zoekcirkel. Kies je 100 km, dan zoekt de app met 50 km en dat
+  staat ook zo in de werkbalk.
+
+Alle 23 niches zijn gecontroleerd tegen alle 17 regio's: dat zijn 391 zoekplannen die automatisch getest worden
+met `npm test`, elk met minimaal twee pogingen.
 
 ---
 
@@ -280,6 +327,8 @@ Alle teksten staan in losse data-bestanden:
   call-to-actions, afsluitingen, afmeldregel, follow-ups, WhatsApp, belscript en postkaarttekst.
 - `public/js/email/templates/de.js` - hetzelfde in het Duits (Sie-vorm, natuurlijk Duits).
 - `public/js/email/templates/niches.nl.js` en `niches.de.js` - per branche 6 openingszinnen en tips.
+- `public/js/config/niches.js` - de zoektermen per branche per taal, plus per branche een **alternatieve zoekterm**
+  (`alt`) die automatisch gebruikt wordt als de eerste zoekopdracht niets oplevert.
 
 Variabelen die je in de teksten kunt gebruiken:
 `{{company}}`, `{{city}}`, `{{niche}}`, `{{firstName}}`, `{{sender}}`, `{{senderCompany}}`,
@@ -349,6 +398,7 @@ Werken niet terwijl je in een tekstveld staat, zodat typen nooit iets onbedoeld 
 | Push mislukt met "Authentication failed" | `gh auth login` uitvoeren, daarna `git push origin main`. |
 | Push mislukt met "non-fast-forward" | `git pull --rebase origin main` en daarna opnieuw pushen. Er wordt nooit geforceerd. |
 | Geen leads uit een zoekopdracht | Deze combinatie is op; kies een andere regio, een ruimere straal of wis de geziene lijst (Instellingen). |
+| Het scherm blijft leeg of klikken doet niets | Ververs de pagina met **Ctrl+Shift+R**. Helpt dat niet, dan zit er nog een oude versie in de cache van de service worker: sluit alle tabbladen van de app en open hem opnieuw. Sinds de fix voor het `hidden`-login-paneel kan dit niet meer door de app zelf komen; `npm test` controleert dat ook. |
 | De app toont "Geen verbinding met de server" | Je gebruikt een statische server in plaats van `npm run dev` of Vercel. De lokale data blijft werken. |
 
 ---
