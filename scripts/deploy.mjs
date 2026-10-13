@@ -27,9 +27,29 @@ try {
 
 console.log('\nStap 2: controleren of de Vercel CLI er is\n');
 let vercelAvailable = false;
+/**
+ * Op Windows is `vercel` een .cmd-bestand, dat Node niet direct kan starten.
+ * Daarom proberen we beide namen; op macOS en Linux is dat gewoon `vercel`.
+ */
+const VERCEL_COMMANDS = process.platform === 'win32' ? ['vercel.cmd', 'vercel'] : ['vercel'];
+
+function findVercel() {
+  for (const command of VERCEL_COMMANDS) {
+    try {
+      const output = execFileSync(command, ['--version'], { encoding: 'utf8', stdio: 'pipe' });
+      return { command, version: String(output ?? '').trim().replace(/^Vercel CLI\s*/, '') || 'versie onbekend' };
+    } catch (error) {
+      if (error.code === 'ENOENT') continue; // niet gevonden: volgende naam proberen
+      return { command, version: 'versie onbekend' };
+    }
+  }
+  return null;
+}
+
+const vercelCli = findVercel();
 try {
-  const version = execFileSync('vercel', ['--version'], { encoding: 'utf8' }).trim();
-  console.log(`Vercel CLI gevonden (${version}).`);
+  if (!vercelCli) throw new Error('niet gevonden');
+  console.log(`Vercel CLI gevonden (${vercelCli.command}, ${vercelCli.version}).`);
   vercelAvailable = true;
 } catch {
   console.log('Vercel CLI niet gevonden of niet uitvoerbaar. Deploy via GitHub gebeurt automatisch.');
@@ -43,7 +63,7 @@ if (!vercelAvailable) {
 
 console.log('\nStap 3: handmatige productie-deploy met Vercel\n');
 try {
-  execFileSync('vercel', ['--prod', '--yes'], { stdio: 'inherit' });
+  execFileSync(vercelCli.command, ['--prod', '--yes'], { stdio: 'inherit' });
   console.log('\nDeploy klaar.');
 } catch (error) {
   console.error('\nDe Vercel-deploy is mislukt.');
