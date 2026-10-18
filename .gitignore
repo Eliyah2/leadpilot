@@ -1,31 +1,11 @@
-# Afhankelijkheden
 node_modules/
-npm-debug.log*
-yarn-error.log*
-
-# Geheimen - NOOIT committen
-.env
-.env.local
-.env.*.local
-*.pem
-*.key
-
-# Vercel
-.vercel/
-.vercel_build_output/
-
-# Tooling / editor
-.freebuff/
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
-*.swp
+client/dist/
+storage/
+storage-test/
+dist-server/
 *.log
-
-# Lokale exports en back-ups van leaddata
-exports/
-backups/
-leadpilot-backup*.json
-
-.vercel
+.env
+.freebuff/
+storage-repro/
+.DS_Store
+*.tsbuildinfo
