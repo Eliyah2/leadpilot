@@ -11,6 +11,18 @@ import { toast, toastError, toastInfo, toastOk } from '../ui/toast.js';
 import { STATUSES, store } from '../store.js';
 import { fetchNextLead, auditLead, enrichLead } from '../lead-service.js';
 
+/** Waarschuwing als deze lead al eerder gemaild is, zodat je niet per ongeluk dubbel mailt. */
+async function confirmAlreadyEmailed(lead) {
+  if (!lead?.emailedAt) return true;
+  const date = formatDateTime(lead.emailedAt);
+  return confirmDialog({
+    title: 'Al eerder gemaild',
+    message: `Deze lead is al gemaild op ${date} (${lead.emailsSent ?? 1}x). Weet je zeker dat je opnieuw wilt mailen?`,
+    confirmLabel: 'Ja, opnieuw mailen',
+    cancelLabel: 'Annuleren',
+  });
+}
+
 /** Hoe een controle tot stand kwam: gemeten, afgeleid of een mening. */
 const BASIS_LABELS = { gemeten: 'gemeten', afgeleid: 'afgeleid', mening: 'mening' };
 import { buildCallScript, buildEmail, buildPostcard, buildWhatsApp, variantLabel } from '../email/engine.js';
@@ -619,6 +631,7 @@ export const leadView = {
         return;
       }
       if (action === 'open-mail') {
+        if (!(await confirmAlreadyEmailed(lead))) return;
         openMailto({
           to: lead.contactEmail ?? '',
           subject: state.current.email?.subject ?? '',
@@ -627,6 +640,7 @@ export const leadView = {
         return;
       }
       if (action === 'mark-sent') {
+        if (!(await confirmAlreadyEmailed(lead))) return;
         store.markEmailSent(lead.id, {
           kind: state.current.email?.kind ?? 'eerste',
           variantKey: state.current.email?.variantKey,
