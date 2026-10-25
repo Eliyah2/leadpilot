@@ -10,6 +10,9 @@ import { confirmDialog, html, on, setContent } from '../dom.js';
 import { toast, toastError, toastInfo, toastOk } from '../ui/toast.js';
 import { STATUSES, store } from '../store.js';
 import { fetchNextLead, auditLead, enrichLead } from '../lead-service.js';
+
+/** Hoe een controle tot stand kwam: gemeten, afgeleid of een mening. */
+const BASIS_LABELS = { gemeten: 'gemeten', afgeleid: 'afgeleid', mening: 'mening' };
 import { buildCallScript, buildEmail, buildPostcard, buildWhatsApp, variantLabel } from '../email/engine.js';
 import { copyToClipboard, countWords, formatDateTime, openMailto } from '../utils.js';
 
@@ -223,7 +226,7 @@ function auditSummary(lead, audit) {
               .map(
                 (check) => html`<li class="finding finding-${check.status}">
                   <span class="finding-icon" aria-hidden="true">${check.status === 'bad' ? '✕' : '!'}</span>
-                  <span><strong>${check.label}</strong><br /><span class="muted">${check.detail}</span></span>
+                  <span><strong>${check.label}</strong> <span class="muted small">(${BASIS_LABELS[check.basis] ?? 'gemeten'})</span><br /><span class="muted">${check.detail}</span></span>
                 </li>`
               )}
           </ul>`

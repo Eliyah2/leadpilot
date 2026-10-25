@@ -109,6 +109,17 @@ export function dedupeKeys(lead) {
   return keys;
 }
 
+/**
+ * Extra dubbelsignaal op basis van adres. Alleen gebruikt om een mogelijk
+ * duplicaat aan te wijzen; er wordt nooit automatisch samengevoegd.
+ */
+export function addressKey(lead) {
+  const street = String(lead.street ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const city = String(lead.city ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!street || !city) return '';
+  return `addr:${street}|${city}`;
+}
+
 /** Kopieer naar klembord, met een fallback voor oudere/onveilige contexten. */
 export async function copyToClipboard(text) {
   const value = String(text ?? '');

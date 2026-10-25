@@ -137,8 +137,10 @@ function findJQueryVersion(html) {
  */
 function runChecks({ html, text, fetchInfo, requestedUrl }) {
   const checks = [];
-  const add = (id, label, status, detail, weight = 0) => {
-    checks.push({ id, label, status, detail, weight });
+  // basis: 'gemeten' = direct uit de HTML of response; 'afgeleid' = redenering op de HTML;
+  // 'mening' = ontwerpoordeel dat niet objectief vast te stellen is.
+  const add = (id, label, status, detail, weight = 0, basis = 'gemeten') => {
+    checks.push({ id, label, status, detail, weight, basis });
   };
 
   const isHttps = fetchInfo.finalUrl.startsWith('https://');
@@ -153,7 +155,7 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
   );
 
   if (!isHttps && requestedUrl.startsWith('https://')) {
-    add('https_redirect', 'Doorverwijzing naar HTTPS', 'bad', 'De HTTPS-versie stuurt door naar een onbeveiligde pagina.', 6);
+    add('https_redirect', 'Doorverwijzing naar HTTPS', 'bad', 'De HTTPS-versie stuurt door naar een onbeveiligde pagina.', 6, 'gemeten');
   }
 
   const hasViewport = /<meta[^>]+name=["']?viewport["']?/i.test(html);
@@ -164,7 +166,8 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
     hasViewport
       ? 'De pagina schaalt mee op mobiel.'
       : 'Geen viewport-meta tag: de site wordt op mobiel klein uitgezoomd weergegeven.',
-    15
+    15,
+    'gemeten'
   );
 
   const responsiveHints = (html.match(/@media[^{]*max-width/gi) ?? []).length;
@@ -175,17 +178,18 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
     responsiveHints > 0
       ? `${responsiveHints} media-query('s) met max-width gevonden in de pagina.`
       : 'Geen media-queries in de HTML gevonden (externe stylesheets kunnen dit wel bevatten).',
-    4
+    4,
+    'afgeleid'
   );
 
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const title = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : '';
   if (!title) {
-    add('title', 'Paginatitel (SEO)', 'bad', 'Geen <title> gevonden: Google toont dan een zelfgekozen titel.', 6);
+    add('title', 'Paginatitel (SEO)', 'bad', 'Geen <title> gevonden: Google toont dan een zelfgekozen titel.', 6, 'gemeten');
   } else if (title.length < 15 || title.length > 70) {
-    add('title', 'Paginatitel (SEO)', 'warn', `<title> is ${title.length} tekens; ideaal is 30-60. Nu: "${title.slice(0, 80)}".`, 2);
+    add('title', 'Paginatitel (SEO)', 'warn', `<title> is ${title.length} tekens; ideaal is 30-60. Nu: "${title.slice(0, 80)}".`, 2, 'gemeten');
   } else {
-    add('title', 'Paginatitel (SEO)', 'good', `Titel gevonden (${title.length} tekens).`, 0);
+    add('title', 'Paginatitel (SEO)', 'good', `Titel gevonden (${title.length} tekens).`, 0, 'gemeten');
   }
 
   const descriptionMatch = html.match(/<meta[^>]+name=["']?description["']?[^>]*content=["']([^"']*)["']/i);
@@ -197,7 +201,8 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
     description
       ? `Meta description aanwezig (${description.length} tekens).`
       : 'Geen meta description: Google kiest zelf een stukje tekst in de zoekresultaten.',
-    description ? 0 : 3
+    description ? 0 : 3,
+    'gemeten'
   );
 
   const ogTags = (html.match(/<meta[^>]+property=["']og:/gi) ?? []).length;
@@ -208,7 +213,8 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
     ogTags >= 2
       ? `${ogTags} Open Graph-tags gevonden (nette preview bij delen).`
       : 'Geen of nauwelijks Open Graph-tags: een link op WhatsApp/Facebook toont geen nette kaart.',
-    ogTags >= 2 ? 0 : 3
+    ogTags >= 2 ? 0 : 3,
+    'gemeten'
   );
 
   const tableCount = (html.match(/<table/gi) ?? []).length;
@@ -224,12 +230,13 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
     outdatedLayout
       ? `Verouderde techniek: ${fontTags} <font>-tags, ${centerTags} <center>-tags, ${spacerGifs} spacer-afbeeldingen en ${tableCount} tabellen voor de opmaak.`
       : 'Geen aanwijzingen voor tabellen-layout of verouderde opmaak-tags.',
-    outdatedLayout ? 10 : 0
+    outdatedLayout ? 10 : 0,
+    'mening'
   );
 
   const flash = /shockwave-flash|\.swf|application\/x-shockwave|<embed[\s>]/i.test(html);
   if (flash) {
-    add('flash', 'Flash-content', 'bad', 'Flash wordt door geen enkele moderne browser meer ondersteund.', 8);
+    add('flash', 'Flash-content', 'bad', 'Flash wordt door geen enkele moderne browser meer ondersteund.', 8, 'gemeten');
   }
 
   const jquery = findJQueryVersion(html);
@@ -239,10 +246,11 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
       'Verouderde JavaScript-bibliotheek',
       'bad',
       `jQuery ${jquery.raw} gevonden: die versie krijgt geen veiligheidsupdates meer.`,
-      8
+      8,
+      'afgeleid'
     );
   } else if (jquery) {
-    add('jquery', 'JavaScript-bibliotheek', 'info', `jQuery ${jquery.raw} gevonden.`, 0);
+    add('jquery', 'JavaScript-bibliotheek', 'info', `jQuery ${jquery.raw} gevonden.`, 0, 'gemeten');
   }
 
   const copyrightYear = findCopyrightYear(html, text);
@@ -253,10 +261,11 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
       'Actualiteit van de site',
       'bad',
       `De site vermeldt nog © ${copyrightYear}. De inhoud lijkt al ${currentYear - copyrightYear} jaar niet bijgewerkt.`,
-      8
+      8,
+      'afgeleid'
     );
   } else if (copyrightYear) {
-    add('copyright', 'Actualiteit van de site', 'good', `De site noemt © ${copyrightYear}.`, 0);
+    add('copyright', 'Actualiteit van de site', 'good', `De site noemt © ${copyrightYear}.`, 0, 'gemeten');
   }
 
   const hasForm = /<form[\s>]/i.test(html) && /<input[^>]+(type=["']?(email|text|tel)|name=)/i.test(html);
@@ -267,7 +276,8 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
     hasForm
       ? 'Er staat een formulier op de site.'
       : 'Geen contactformulier gevonden: bezoekers moeten bellen of zelf een mailadres zoeken.',
-    hasForm ? 0 : 6
+    hasForm ? 0 : 6,
+    'afgeleid'
   );
 
   const bookingPattern =
@@ -280,7 +290,8 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
     hasBooking
       ? 'Er is een online reservering of afspraakmogelijkheid gevonden.'
       : 'Geen online reserveren of afspraak maken gevonden: klanten moeten bellen, en dat kost je boekingen.',
-    hasBooking ? 0 : 8
+    hasBooking ? 0 : 8,
+    'afgeleid'
   );
 
   const hasPhoneLink = /href=["']tel:/i.test(html);
@@ -304,7 +315,7 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
 
   const noindex = /<meta[^>]+name=["']?robots["']?[^>]+noindex/i.test(html);
   if (noindex) {
-    add('robots', 'Vindbaarheid in Google', 'bad', 'De pagina staat op noindex: Google mag hem niet tonen.', 10);
+    add('robots', 'Vindbaarheid in Google', 'bad', 'De pagina staat op noindex: Google mag hem niet tonen.', 10, 'gemeten');
   }
 
   const localBusinessSchema = /"@type"\s*:\s*"(LocalBusiness|Restaurant|HairSalon|Store|LocalBusiness)"/i.test(html);
@@ -315,7 +326,8 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
     localBusinessSchema
       ? 'LocalBusiness structured data gevonden.'
       : 'Geen LocalBusiness structured data: je mist de uitgebreide weergave in Google.',
-    localBusinessSchema ? 0 : 4
+    localBusinessSchema ? 0 : 4,
+    'gemeten'
   );
 
   const sizeKb = Math.round(fetchInfo.bytes / 1024);
@@ -341,7 +353,7 @@ function runChecks({ html, text, fetchInfo, requestedUrl }) {
   );
 
   if (fetchInfo.contentType && !/text\/html/i.test(fetchInfo.contentType)) {
-    add('content_type', 'HTML-pagina', 'info', `Content-Type is "${fetchInfo.contentType}".`, 0);
+    add('content_type', 'HTML-pagina', 'info', `Content-Type is "${fetchInfo.contentType}".`, 0, 'gemeten');
   }
 
   return { checks, emails, title, description, copyrightYear };

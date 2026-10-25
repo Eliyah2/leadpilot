@@ -7,7 +7,7 @@
  * Dat is voor deze hoeveelheid data ruim snel genoeg en houdt de code simpel.
  */
 import { storage } from './storage.js';
-import { addDays, dedupeKeys, deepClone, todayISO, uid } from './utils.js';
+import { addDays, addressKey, dedupeKeys, deepClone, todayISO, uid } from './utils.js';
 import { STATUSES, STATUS_LABELS, REPLY_STATUSES, WON_STATUSES } from './config/statuses.js';
 
 // De statussen staan in een eigen, DOM-vrij bestand zodat de CSV-import en de
@@ -208,6 +208,13 @@ export const store = {
     );
   },
 
+  /** Leads op hetzelfde adres: alleen een signaal om na te kijken, nooit automatisch samenvoegen. */
+  possibleAddressDuplicates(lead) {
+    const key = addressKey(lead);
+    if (!key) return [];
+    return state.leads.filter((existing) => addressKey(existing) === key);
+  },
+
   findById(id) {
     return state.leads.find((lead) => lead.id === id) ?? null;
   },
@@ -229,6 +236,9 @@ export const store = {
       notes: lead.notes ?? [],
       timeline: lead.timeline ?? [],
       variantKey: lead.variantKey ?? null,
+      source: lead.source ?? 'Google Places',
+      sourceUrl: lead.sourceUrl ?? lead.mapsUrl ?? '',
+      collectedAt: lead.collectedAt ?? now,
       createdAt: lead.createdAt ?? now,
       updatedAt: now,
     };
