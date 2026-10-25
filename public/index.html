@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LeadPilot · Eliyah Webdesign</title>
+    <meta
+      name="description"
+      content="LeadPilot vindt lokale bedrijven, analyseert hun online aanwezigheid en schrijft een kant-en-klare cold e-mail."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#view-root">Direct naar de inhoud</a>
+
+    <div id="offline-banner" class="offline-banner" hidden>
+      Je bent offline. Je lokale leads en instellingen blijven werken.
+    </div>
+
+    <header class="app-header">
+      <a class="brand" href="#/lead">
+        <span class="brand-mark" aria-hidden="true">LP</span>
+        <span class="brand-text">
+          <strong>LeadPilot</strong>
+          <small>Eliyah Webdesign</small>
+        </span>
+      </a>
+      <nav id="main-nav" class="main-nav" aria-label="Hoofdnavigatie"></nav>
+      <button id="theme-toggle" type="button" class="icon-btn" aria-label="Thema wisselen">◐</button>
+    </header>
+
+    <main id="view-root" class="view-root" tabindex="-1"></main>
+
+    <footer class="app-footer">
+      <p>
+        LeadPilot 1.0 · gebouwd voor Eliyah Webdesign ·
+        <a href="https://eliyah-webdesign.vercel.app" target="_blank" rel="noopener noreferrer">eliyah-webdesign.vercel.app</a>
+      </p>
+      <p class="muted small">
+        Alleen zakelijke, openbaar beschikbare gegevens. Geen tracking, geen cookies voor statistieken.
+      </p>
+    </footer>
+
+    <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
+    <div id="live-region" class="sr-only" role="status" aria-live="polite"></div>
+    <dialog id="app-dialog" class="app-dialog"></dialog>
+    <div id="login" class="login-overlay" hidden></div>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>
