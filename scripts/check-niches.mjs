@@ -25,6 +25,7 @@ import {
   fetchNextLead,
 } from '../public/js/lead-service.js';
 import { normalizePlace, FIELD_MASK } from '../api/_lib/places.js';
+import { GEOAPIFY_CATEGORIES, normalizeGeoapifyFeature, resolveGeoapifyFilter } from '../api/_lib/geoapify.js';
 import { buildEmail } from '../public/js/email/engine.js';
 import { computeLeadScore, salesArguments } from '../public/js/scoring.js';
 
@@ -369,6 +370,55 @@ export function checkLeadPipeline() {
  * ("kapsalon" is in Nederland ook een gerecht) en een branche-indeling die
  * elkaars types overneemt.
  */
+export async function checkGeoapify() {
+  const categoryKeys = new Set([
+    'service.beauty.hairdresser', 'service.beauty', 'catering.restaurant', 'catering.cafe', 'catering',
+    'commercial.food_and_drink.bakery', 'commercial.trade', 'service.electrician', 'service.cleaning',
+    'healthcare.dentist', 'healthcare.clinic_or_praxis', 'service.vehicle.repair.car', 'service.taxi',
+    'service.photographer', 'sport.fitness', 'sport.fitness.gym', 'pet.veterinary',
+  ]);
+  for (const [nicheId, categories] of Object.entries(GEOAPIFY_CATEGORIES)) {
+    assert(categories.length > 0 && categories.every((category) => categoryKeys.has(category)), `ongeldige Geoapify-categorie voor ${nicheId}`);
+  }
+
+  const lead = normalizeGeoapifyFeature({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [6.1724, 51.3704] },
+    properties: {
+      place_id: 'geoapify-test-1',
+      name: 'Testbedrijf',
+      formatted: 'Teststraat 1, Venlo, Nederland',
+      address_line1: 'Teststraat 1',
+      street: 'Teststraat',
+      housenumber: '1',
+      city: 'Venlo',
+      country_code: 'nl',
+      website: 'https://example.com',
+      contact: { phone: '+31 77 1234567', email: 'info@example.com' },
+      categories: ['service.beauty.hairdresser'],
+    },
+  }, { nicheLabel: 'Kapper' });
+  assert(lead.name === 'Testbedrijf' && lead.city === 'Venlo', 'Geoapify bedrijf/adres niet genormaliseerd');
+  assert(lead.phone === '+31 77 1234567' && lead.publicEmails[0] === 'info@example.com', 'openbare contactgegevens niet overgenomen');
+  assert(lead.website === 'https://example.com/' && lead.country === 'NL', 'website of land niet genormaliseerd');
+  assert(lead.rating === null && lead.reviews === null, 'Geoapify mag geen ontbrekende reviews verzinnen');
+  assert(lead.source === 'Geoapify / OpenStreetMap' && lead.mapsUrl.includes('openstreetmap.org'), 'Geoapify-bronlink ontbreekt');
+  assert(resolveGeoapifyFilter({ lat: 51.37, lng: 6.17, radius: 100000, country: 'NL' }) === 'circle:6.17,51.37,50000', 'Geoapify straalbegrenzing is ongeldig');
+  assert(resolveGeoapifyFilter({ city: 'Heel Nederland', country: 'NL' }) === 'countrycode:nl', 'landbreed filter is onjuist');
+  const noNetwork = globalThis.fetch;
+  globalThis.fetch = async (url) => ({
+    ok: true,
+    json: async () => ({ results: [{ place_id: 'country.123' }] }),
+    url: String(url),
+  });
+  try {
+    assert(await resolveGeoapifyFilter({ apiKey: 'test', city: 'Heel Limburg', country: 'NL' }) === 'place:country.123', 'provincie moet als plaatsgrens worden opgehaald');
+  } finally {
+    globalThis.fetch = noNetwork;
+  }
+  return `${Object.keys(GEOAPIFY_CATEGORIES).length} niches gemapt; GeoJSON-normalisatie, contactvelden, OSM-bron en geografische filters ok`;
+}
+
 export function checkNicheTerms() {
   const problems = [];
   // Branches waarvoor Google écht geen eigen type heeft. Staat een nieuwe niche

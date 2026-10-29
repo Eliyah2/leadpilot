@@ -177,6 +177,20 @@ export const settingsView = {
       <section class="card">
         <h3>Zoeken</h3>
         <p class="muted small">
+          Geoapify zoekt zonder bankpas via openbare OpenStreetMap-gegevens. Wel is een gratis Geoapify-account met API-sleutel nodig; zie de instellingen hieronder. Resultaten zijn afhankelijk van wat vrijwilligers in OpenStreetMap hebben vastgelegd.
+        </p>
+        <div class="settings-grid">
+          <label class="field">
+            <span>Bron voor leads</span>
+            <select data-setting="leadProvider">
+              <option value="geoapify" ${settings.leadProvider === 'geoapify' ? 'selected' : ''}>Geoapify / OpenStreetMap (geen bankpas)</option>
+              <option value="google" ${settings.leadProvider === 'google' ? 'selected' : ''}>Google Places</option>
+            </select>
+            <span class="muted small">Geoapify vereist GEOAPIFY_API_KEY in Vercel. De gratis sleutel maak je aan via <a href="https://myprojects.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a>; hiervoor is volgens Geoapify geen betaalkaart nodig. Voeg die sleutel in Vercel toe als environment variable en redeploy. De sleutel blijft server-side.</span>
+            <span class="muted small">Gratis plan: toon ook de verplichte <a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify-link</a> en bronvermelding bij resultaten.</span>
+          </label>
+        </div>
+        <p class="muted small">
           Vindt een zoekopdracht niets bruikbaars, dan probeert LeadPilot automatisch de alternatieve branchenaam
           (bijvoorbeeld "Herrenfriseur" naast "Barbershop"), daarna dezelfde zoekopdracht zonder straalbeperking en
           als laatste heel het land. Je krijgt dus altijd te zien wat er geprobeerd is.
@@ -197,7 +211,7 @@ export const settingsView = {
                 (radius) => html`<option value="${radius}" ${Number(settings.radiusKm) === radius ? 'selected' : ''}>${radius} km</option>`
               )}
             </select>
-            <span class="muted small">Google staat maximaal 50 km toe; bij 100 km zoekt LeadPilot met 50 km.</span>
+            <span class="muted small">Zoekradius voor Geoapify; bij plaatsen zonder coördinaten gebruikt de app de plaatsgrens.</span>
           </label>
           <label class="field">
             <span>Filter op lead-kwaliteit</span>

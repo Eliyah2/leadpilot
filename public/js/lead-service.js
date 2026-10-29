@@ -292,7 +292,7 @@ export function enrichLead({ lead, audit, search, settings }) {
     regionCountry: search.country,
     radiusKm: search.radiusKmUsed ?? settings.radiusKm ?? search.region.radius ?? null,
     query: search.q,
-    country: search.country || lead.country,
+    country: lead.country || search.country,
     websiteStatus: !lead.website ? 'none' : audit?.status === 'ok' ? 'analysed' : 'unavailable',
     audit: audit ?? null,
     score: scored.score,
@@ -387,6 +387,11 @@ export async function fetchNextLead({ settings, seenPlaceIds = new Set(), onProg
       // Aantal pagina's dat deze stap mag ophalen: de precieze stap 2, de
       // ruimere stappen 1. Zo blijven de Google-kosten per klik beperkt.
       pages: step.maxPages,
+      provider: settings.leadProvider ?? 'google',
+      nicheId: step.niche.id,
+      niche: step.nicheLabel,
+      city: step.regionLabel,
+      offset: 0,
     });
     calls += 1;
 
@@ -395,7 +400,9 @@ export async function fetchNextLead({ settings, seenPlaceIds = new Set(), onProg
         kind: 'demo',
         query: step.q,
         searchLinks: response.searchLinks ?? [],
-        message: response.message ?? 'Demo-modus: geen Google Places-sleutel ingesteld.',
+        message: response.message ?? 'Geen API-sleutel ingesteld voor deze bron.',
+        provider: response.provider ?? settings.leadProvider ?? 'google',
+        attribution: response.attribution ?? '',
         search: step,
         // Ook zonder sleutel tonen we de daglimiet, zodat je meteen ziet
         // hoeveel ruimte je hebt zodra de sleutel er wél is.
@@ -423,9 +430,10 @@ export async function fetchNextLead({ settings, seenPlaceIds = new Set(), onProg
         if (!picked) continue;
         return {
           kind: 'lead',
-          lead: picked.lead,
+          lead: { ...picked.lead, source: picked.lead.source ?? response.provider ?? 'Google Places' },
           audit: picked.audit,
           search: step,
+          provider: response.provider ?? settings.leadProvider ?? 'google',
           quota: response.quota,
           meta: response.meta,
           attempts,

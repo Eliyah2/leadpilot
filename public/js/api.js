@@ -123,10 +123,10 @@ export const api = {
    * Zoek leads. `exclude` mag een array place_id's zijn (max 500).
    * Zonder API-sleutel krijg je { mode: 'demo', searchLinks: [...] } terug.
    */
-  fetchLeads({ q, lat, lng, radius, lang, country, exclude = [], want = 10, pages = 2 }) {
+  fetchLeads({ q, lat, lng, radius, lang, country, exclude = [], want = 10, pages = 2, provider = 'google', nicheId = '', niche = '', city = '', offset = 0 }) {
     return request('/api/leads', {
       method: 'POST',
-      body: { q, lat, lng, radius, lang, country, exclude: exclude.slice(-500), want, pages },
+      body: { q, lat, lng, radius, lang, country, exclude: exclude.slice(-500), want, pages, provider, nicheId, niche, city, offset },
     });
   },
 

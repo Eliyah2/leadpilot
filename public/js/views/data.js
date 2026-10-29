@@ -56,6 +56,7 @@ export const dataView = {
           settings: state.settings,
           leads: state.leads,
           seen: state.seen,
+          today: storage.get('today', null),
           meta: state.meta,
         };
         downloadFile(`leadpilot-backup-${todayISO()}.json`, JSON.stringify(backup, null, 2), 'application/json');
@@ -151,6 +152,8 @@ export const dataView = {
             confirmLabel: 'Terugzetten',
           });
           if (!ok) return;
+          if (backup.today) storage.set('today', backup.today);
+          else storage.remove('today');
           store.replaceAll({
             settings: backup.settings,
             leads: Array.isArray(backup.leads) ? backup.leads : [],

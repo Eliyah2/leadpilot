@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS = {
   theme: 'system', // system | light | dark
   nicheId: 'kapper',
   regionId: 'venlo',
+  leadProvider: 'geoapify',
   radiusKm: 10,
   customNiches: [],
   customRegions: [],

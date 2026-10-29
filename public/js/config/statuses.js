@@ -7,6 +7,7 @@
 export const STATUSES = [
   { id: 'nieuw', label: 'Nieuw', color: 'var(--status-new)' },
   { id: 'bewaard', label: 'Bewaard', color: 'var(--status-saved)' },
+  { id: 'benaderd', label: 'Benaderd', color: 'var(--status-mailed)' },
   { id: 'gemaild', label: 'Gemaild', color: 'var(--status-mailed)' },
   { id: 'followup1', label: 'Follow-up 1', color: 'var(--status-follow1)' },
   { id: 'followup2', label: 'Follow-up 2', color: 'var(--status-follow2)' },

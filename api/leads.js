@@ -21,6 +21,7 @@ import { getConfig } from './_lib/config.js';
 import { cache } from './_lib/cache.js';
 import { checkBurst, checkDaily, peekDaily } from './_lib/rate-limit.js';
 import { searchPlaces, searchPlacesPaged } from './_lib/places.js';
+import { resolveGeoapifyFilter, searchGeoapify } from './_lib/geoapify.js';
 import {
   getClientIp,
   isSameOrigin,
@@ -79,6 +80,8 @@ async function collectParams(req) {
     q: cleanText(merged.q ?? merged.query ?? '', 160),
     city: cleanText(merged.city ?? '', 60),
     niche: cleanText(merged.niche ?? '', 60),
+    nicheId: cleanText(merged.nicheId ?? '', 60),
+    provider: merged.provider === 'geoapify' ? 'geoapify' : 'google',
     lat: Number.parseFloat(merged.lat) || null,
     lng: Number.parseFloat(merged.lng) || null,
     radius: Number.parseInt(merged.radius, 10) || null,
@@ -87,6 +90,7 @@ async function collectParams(req) {
     want: Math.min(Math.max(Number.parseInt(merged.want, 10) || 10, 1), MAX_LEADS_PER_REQUEST),
     // Hoeveel pagina's mogen er maximaal opgehaald worden voor deze aanvraag?
     pages: Math.min(Math.max(Number.parseInt(merged.pages, 10) || 2, 1), MAX_PAGES),
+    offset: Math.min(Math.max(Number.parseInt(merged.offset, 10) || 0, 0), 480),
     exclude: numbersFrom(merged.exclude).map((id) => cleanText(id, 120)).filter(Boolean).slice(0, MAX_EXCLUDE),
   };
 }
@@ -116,14 +120,107 @@ export default async function handler(req, res) {
 
   const config = getConfig();
 
-  // ── Demo-modus: geen API-sleutel ────────────────────────────────────────
+  // ── Geoapify: onafhankelijke bron voor bedrijven uit OpenStreetMap ──────
+  if (params.provider === 'geoapify') {
+    if (!config.hasGeoapifyKey) {
+      return sendOk(res, {
+        mode: 'demo',
+        provider: 'geoapify',
+        leads: [],
+        query,
+        message: 'Geoapify is nog niet ingesteld. Voeg GEOAPIFY_API_KEY toe in Vercel; de sleutel is gratis aan te maken zonder bankpas.',
+        searchLinks: [{ label: 'Gratis Geoapify-sleutel aanvragen (zonder bankpas)', url: 'https://myprojects.geoapify.com/' }],
+        attribution: '© OpenStreetMap contributors',
+      });
+    }
+
+    const dayLimitError = () => {
+      const error = new Error(`De dagelijkse Geoapify-limiet van ${config.maxGeoapifyRequestsPerDay} aanvragen is bereikt.`);
+      error.status = 429;
+      error.code = 'geoapify_daily_limit';
+      return error;
+    };
+    const beforeGeoapifyRequest = async () => {
+      const daily = await checkDaily('geoapify_searches', config.maxGeoapifyRequestsPerDay);
+      if (!daily.allowed) throw dayLimitError();
+    };
+
+    try {
+      const filter = await resolveGeoapifyFilter({
+        apiKey: config.geoapifyApiKey,
+        city: params.city,
+        country: params.country,
+        lat: params.lat,
+        lng: params.lng,
+        radius: params.radius,
+        beforeRequest: beforeGeoapifyRequest,
+      });
+      const exclude = new Set(params.exclude);
+      const seenIds = new Set();
+      const leads = [];
+      let cacheHit = true;
+
+      // Haal alleen extra pagina’s op als de eerste pagina te weinig nieuwe leads heeft.
+      for (let offset = params.offset; offset <= 480 && offset < params.offset + params.pages * 20 && leads.length < params.want; offset += 20) {
+        const pageKey = "lp:geoapify:" + hashKey({ nicheId: params.nicheId, niche: params.niche, filter, country: params.country, lang: params.lang, offset });
+        let page = await cache.get(pageKey);
+        if (!page) {
+          cacheHit = false;
+          page = await searchGeoapify({
+            apiKey: config.geoapifyApiKey,
+            nicheId: params.nicheId,
+            nicheLabel: params.niche,
+            filter,
+            language: params.lang,
+            offset,
+            beforeRequest: beforeGeoapifyRequest,
+          });
+          await cache.set(pageKey, page, config.searchCacheTtl);
+        }
+        for (const lead of page) {
+          if (exclude.has(lead.placeId) || seenIds.has(lead.placeId)) continue;
+          seenIds.add(lead.placeId);
+          leads.push(lead);
+          if (leads.length >= params.want) break;
+        }
+        if (page.length < 20) break;
+      }
+
+      const searchesToday = await peekDaily('geoapify_searches');
+      return sendOk(res, {
+        mode: 'live',
+        provider: 'geoapify',
+        leads,
+        query,
+        exhausted: leads.length === 0,
+        allSeen: params.exclude.length > 0 && leads.length === 0,
+        quota: { searchesToday, searchLimit: config.maxGeoapifyRequestsPerDay },
+        attribution: '© OpenStreetMap contributors',
+        providerAttribution: true,
+        meta: { cacheDriver: cache.driver, cacheHit, cacheTtlSeconds: config.searchCacheTtl },
+      });
+    } catch (error) {
+      const timeout = error?.name === 'TimeoutError' || error?.name === 'AbortError';
+      const status = timeout ? 504 : error?.status === 429 ? 429 : 502;
+      const message = error?.code === 'geoapify_daily_limit'
+        ? error.message
+        : error?.status === 429
+          ? 'Geoapify laat op dit moment geen extra aanvragen toe. Wacht even en probeer opnieuw; controleer ook je dagelijkse tegoed bij Geoapify.'
+        : timeout
+          ? 'Geoapify reageerde niet op tijd. Probeer het later opnieuw.'
+          : 'Zoeken via Geoapify is mislukt. Controleer de sleutel en probeer het opnieuw.';
+      return sendError(res, status, error?.code ?? (timeout ? 'geoapify_timeout' : 'geoapify_error'), message);
+    }
+  }
+  // ── Demo-modus: geen Google- of alternatieve API-sleutel ────────────────
   if (!config.hasPlacesKey) {
     return sendOk(res, {
       mode: 'demo',
+      provider: 'google',
       leads: [],
       query,
       message:
-        'Geen GOOGLE_PLACES_API_KEY ingesteld. LeadPilot werkt in demo-modus: gebruik de zoeklinks hieronder of importeer je eigen leads via CSV.',
+        'Geen GOOGLE_PLACES_API_KEY ingesteld. Kies Geoapify in Instellingen, of gebruik de zoeklinks en CSV-import.',
       searchLinks: demoLinks(query, params.lang, params.country),
       cache: { driver: cache.driver, hit: false },
       quota: { searchesToday: 0, searchLimit: config.maxSearchesPerDay },

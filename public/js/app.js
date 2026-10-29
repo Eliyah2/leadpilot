@@ -9,6 +9,7 @@ import { store } from './store.js';
 import { storage } from './storage.js';
 import { api } from './api.js';
 import { leadView } from './views/lead.js';
+import { todayView } from './views/today.js';
 import { pipelineView } from './views/pipeline.js';
 import { remindersView } from './views/reminders.js';
 import { dashboardView } from './views/dashboard.js';
@@ -16,8 +17,8 @@ import { settingsView } from './views/settings.js';
 import { dataView } from './views/data.js';
 import { avgView } from './views/avg.js';
 
-const VIEWS = [leadView, pipelineView, remindersView, dashboardView, settingsView, dataView, avgView];
-const DEFAULT_VIEW = 'lead';
+const VIEWS = [todayView, leadView, pipelineView, remindersView, dashboardView, settingsView, dataView, avgView];
+const DEFAULT_VIEW = 'today';
 
 let currentView = null;
 let syncApplied = false;

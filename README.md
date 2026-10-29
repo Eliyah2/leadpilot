@@ -13,9 +13,9 @@ cold e-mail die je direct kunt versturen.
 
 ## 1. Hoe het werkt
 
-1. **Instellingen** - kies je niche, regio en filter. Vul eenmalig je eigen gegevens in.
-2. **Nieuwe lead** - de app zoekt via de Google Places API (New) naar bedrijven die je nog niet
-   eerder zag en analyseert de website van het eerste bedrijf dat door je filter komt.
+1. **Instellingen** - kies je leadbron, niche, regio en filter. Vul eenmalig je eigen gegevens in.
+2. **Nieuwe lead** - standaard zoekt de app via Geoapify (OpenStreetMap) naar bedrijven die je nog niet
+   eerder zag en analyseert de website van het eerste bedrijf dat door je filter komt. Google Places is optioneel.
 3. **Beoordelen** - je ziet de lead-score met uitleg, de concrete bevindingen van de website-analyse
    en drie verkoopargumenten die bij dít bedrijf passen.
 4. **Versturen** - kopieer de mail, open hem in je mailapp of kopieer alleen het onderwerp.
@@ -108,13 +108,12 @@ Je hebt alleen Node 20 of nieuwer nodig. Er zijn **geen dependencies**, dus geen
 npm run dev          # start http://127.0.0.1:4321 (met de echte API-routes)
 ```
 
-De app werkt meteen in **demo-modus**: zonder Google-sleutel krijg je Google Maps-zoeklinks en kun
-je leads via CSV importeren. Alles (pipeline, notities, dashboard) werkt volledig.
+De app werkt met Geoapify voor echte bedrijvengidsresultaten zonder bankpas. Je hebt wel een gratis Geoapify-account en API-sleutel nodig; zonder sleutel krijg je een instellink en kun je leads via CSV importeren. Alles (pipeline, notities, dashboard) werkt ook zonder externe bron.
 
 Wil je de echte Google-koppeling lokaal testen, maak dan een `.env`-bestand:
 
 ```bash
-cp .env.example .env      # vul daarna GOOGLE_PLACES_API_KEY in
+cp .env.example .env      # vul daarna GEOAPIFY_API_KEY in (gratis, geen bankpas)
 npm run dev
 ```
 
@@ -154,7 +153,29 @@ en 391 zoekplannen. Zo weet je vóór je gaat zoeken al dat elke niche een bruik
 
 ---
 
-## 4. Eenmalig instellen: Google Places API-sleutel
+## Dagelijks overzicht op je telefoon
+
+Open **Vandaag** en klik op **Vandaag 5 nieuwe leads**. De geselecteerde niche, regio en straal stel je in bij **Instellingen**; Venlo en kapper zijn de standaard. Resultaten blijven dezelfde dag zichtbaar na verversen, totdat je ze afvinkt, overslaat, op geen interesse zet of om een nieuwe lijst vraagt. De volgende dag vraag je opnieuw leads aan. Bij minder resultaten toont de app er minder dan drie en kun je de regio of niche aanpassen.
+
+De lijst en de volledige historie van getoonde place_id's staan in localStorage op dezelfde browser en hetzelfde apparaat. Daarmee worden eerder getoonde, benaderde en afgewezen bedrijven niet opnieuw geselecteerd zolang die gegevens bewaard blijven. Een andere telefoon/browser, privémodus of wissen van browsergegevens doorbreekt die bescherming; ook een gewijzigde place_id kan niet automatisch worden herkend. Maak via **Data & AVG → JSON-back-up** regelmatig een back-up: die bevat ook de dagelijkse historie. De optionele Redis-synchronisatie hieronder synchroniseert de bestaande pipeline, niet de dagelijkse lijst; gebruik die dus niet als garantie tegen dubbelen tussen apparaten.
+
+Een ontbrekende websitevermelding betekent niet noodzakelijk dat een bedrijf geen website heeft. Een technisch aandachtspunt is geen bewijs dat een website verouderd is. Controleer vóór contact de gegevens, de e-mailtekst en de toepasselijke regels voor zakelijke acquisitie, zeker voor Duitsland. Open mail verstuurt niets automatisch; vink pas **Benaderd** aan nadat je contact hebt opgenomen.
+
+## 4. Eenmalig instellen: Geoapify (gratis, geen bankpas)
+
+1. Maak een gratis account aan via <https://myprojects.geoapify.com/>; Geoapify vermeldt een gratis plan zonder creditcard.
+2. Maak een project/API-sleutel aan.
+3. **Lokaal:** open het genegeerde `.env.local`, vul `GEOAPIFY_API_KEY=` aan met je eigen sleutel en sla op. Deel het bestand of de sleutel niet. Start `npm run dev` en open `http://127.0.0.1:4321/api/health`: `geoapifyKey: ingesteld` toont alleen of een waarde aanwezig is, niet of die geldig is. Test vervolgens een zoekopdracht in **Vandaag**; alleen echte resultaten bevestigen de koppeling.
+4. **Vercel:** open je LeadPilot-project → **Settings → Environment Variables** → voeg `GEOAPIFY_API_KEY` toe met je sleutel en selecteer **Production**, **Preview** en **Development**. Sla op. Als alternatief kun je `vercel env add GEOAPIFY_API_KEY` uitvoeren en de CLI-keuzes volgen; herhaal dit voor de benodigde omgevingen. Deel de sleutel niet in chat of code.
+5. Deploy daarna de gewenste code opnieuw: gewijzigde environment variables worden pas bij een nieuwe deployment toegepast. Open de live app en controleer eerst `/api/health` en daarna **Vandaag**.
+6. De sleutel blijft server-side; hij wordt niet naar de browser gestuurd. LeadPilot gebruikt standaard de bron Geoapify / OpenStreetMap.
+7. Resultaten kunnen naam, adres, telefoon, website of publiek e-mailadres bevatten als die gegevens in OpenStreetMap zijn vastgelegd. Reviews en ratings zijn niet beschikbaar via deze bron en worden niet verzonnen.
+
+Geoapify biedt in het huidige gratis plan 3.000 credits per dag; LeadPilot begrenst standaard tot 50 API-aanvragen per dag en cachet resultaten. Controleer de actuele limieten op <https://www.geoapify.com/pricing/>. Gratis plan vereist een zichtbare link naar Geoapify; resultaten worden bovendien vermeld als <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>.
+
+Google Places blijft een optionele bron en vereist een Google Cloud factureringsaccount en betaalmethode.
+
+### Google Places API-sleutel (optioneel)
 
 1. Ga naar <https://console.cloud.google.com> en log in met je Google-account.
 2. **Nieuw project** aanmaken (bijvoorbeeld `leadpilot`) en dat project selecteren.
@@ -176,7 +197,8 @@ en 391 zoekplannen. Zo weet je vóór je gaat zoeken al dat elke niche een bruik
   Eén klik op "Nieuwe lead" doet maximaal 4 zoekopdrachten, waarvan de eerste 2 pagina's mag ophalen en de
   ruimere pogingen elk 1 pagina. Vijf kliks kosten dus nooit meer dan 20 zoekopdrachten.
 - Website-analyses gaan niet via Google en worden een week bewaard; `MAX_AUDITS_PER_DAY` (standaard 200) begrenst ze.
-- Zonder `GOOGLE_PLACES_API_KEY` kost niets iets: dan werkt de app in demo-modus.
+- Geoapify-aanvragen worden met `MAX_GEOAPIFY_REQUESTS_PER_DAY` (standaard 50) begrensd; resultaatpagina's worden 24 uur gecachet.
+- Zonder `GEOAPIFY_API_KEY` of `GOOGLE_PLACES_API_KEY` toont de app de gratis Geoapify-aanmeldlink of demo-zoeklinks.
 
 ---
 
@@ -248,7 +270,9 @@ per ongeluk een `.env`-bestand in de staging staat. Er wordt **nooit** geforceer
 4. Klap **Environment Variables** open en vul in:
    | Naam | Waarde | Verplicht |
    | --- | --- | --- |
-   | `GOOGLE_PLACES_API_KEY` | je Google-sleutel | ja, voor echte leads |
+   | `GEOAPIFY_API_KEY` | gratis Geoapify-sleutel (geen bankpas) | aanbevolen voor echte leads |
+   | `MAX_GEOAPIFY_REQUESTS_PER_DAY` | bijv. `50` | nee |
+   | `GOOGLE_PLACES_API_KEY` | Google Places-sleutel | optioneel, vereist Google-facturering |
    | `APP_PASSWORD` | een zelfgekozen wachtwoord | sterk aanbevolen |
    | `MAX_SEARCHES_PER_DAY` | bijv. `100` | nee |
    | `MAX_AUDITS_PER_DAY` | bijv. `200` | nee |

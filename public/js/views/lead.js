@@ -213,7 +213,7 @@ function auditSummary(lead, audit) {
     return html`
       <div class="audit-block">
         <h3>Website-analyse</h3>
-        <p class="notice notice-warn">Geen website gevonden in Google Maps. Dat is geen gemis in de mail: het is je sterkste verkoopargument.</p>
+        <p class="notice notice-warn">Geen website gevonden in de brongegevens. Dat is geen gemis in de mail: het is je sterkste verkoopargument.</p>
       </div>
     `;
   }
@@ -275,6 +275,7 @@ function leadCard(state) {
   if (!lead) return '';
   return html`
     <article class="card lead-card">
+      ${lead.source === 'Geoapify / OpenStreetMap' ? html`<p class="muted small">Bron: <a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a></p>` : ''}
       <header class="lead-head">
         <div>
           <h2>${lead.name}</h2>
@@ -317,7 +318,7 @@ function leadCard(state) {
       </dl>
 
       <div class="lead-links">
-        ${lead.mapsUrl ? html`<a class="btn btn-ghost btn-sm" href="${lead.mapsUrl}" target="_blank" rel="noopener noreferrer">Google Maps</a>` : ''}
+        ${lead.mapsUrl ? html`<a class="btn btn-ghost btn-sm" href="${lead.mapsUrl}" target="_blank" rel="noopener noreferrer">${lead.source === 'Geoapify / OpenStreetMap' ? 'OpenStreetMap' : 'Google Maps'}</a>` : ''}
         ${lead.website ? html`<a class="btn btn-ghost btn-sm" href="${lead.website}" target="_blank" rel="noopener noreferrer">Website openen</a>` : ''}
         ${lead.phone ? html`<a class="btn btn-ghost btn-sm" href="tel:${lead.phone}">Bellen</a>` : ''}
         ${lead.regionLabel ? html`<span class="chip">${lead.regionLabel}</span>` : ''}
@@ -441,13 +442,13 @@ function demoState(state) {
       <h2>Demo-modus</h2>
       <p>${state.current.demo}</p>
       <p class="muted">
-        Zoekopdracht: <strong>${state.current.search?.q ?? ''}</strong>. Open een zoeklink, zoek je leads en importeer ze
-        daarna via CSV - of zet je Google Places API-sleutel in Vercel voor automatische leads.
+        Zoekopdracht: <strong>${state.current.search?.q ?? ''}</strong>. Open een zoeklink en importeer leads via CSV, of stel een API-sleutel voor automatische resultaten in.
       </p>
       <div class="lead-actions">
         ${(state.current.searchLinks ?? []).map(
           (link) => html`<a class="btn btn-primary btn-sm" href="${link.url}" target="_blank" rel="noopener noreferrer">${link.label}</a>`
         )}
+        <button type="button" class="btn btn-ghost btn-sm" data-action="goto-settings">Bron instellen</button>
         <button type="button" class="btn btn-ghost btn-sm" data-action="goto-data">CSV importeren</button>
       </div>
     </div>
@@ -734,8 +735,7 @@ export const leadView = {
       ${branchWarning(state)} ${broadenedNotice(state)}
       ${legalWarning(state)}
       ${state.current.demo ? html`<div class="notice notice-warn">
-            <strong>Demo-modus actief</strong> - er is nog geen GOOGLE_PLACES_API_KEY ingesteld in Vercel, dus LeadPilot kan nog geen echte bedrijven ophalen.
-            Gebruik hieronder de zoeklinks met CSV-import, of zet de sleutel in Vercel (Settings &rarr; Environment Variables) en redeploy.
+            <strong>Bron nog niet ingesteld</strong> - er ontbreekt nog een API-sleutel voor de gekozen provider. Gebruik de link hieronder of stel een bron in bij Instellingen.
             De knop <em>Nieuwe lead</em> blijft gewoon werken.
           </div>` : ''}
       ${state.current.loading ? loadingState(state) : ''}

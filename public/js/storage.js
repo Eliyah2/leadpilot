@@ -10,7 +10,7 @@
 import { safeParse } from './utils.js';
 
 const NAMESPACE = 'leadpilot.v1.';
-const KEYS = ['settings', 'leads', 'seen', 'meta'];
+const KEYS = ['settings', 'leads', 'seen', 'meta', 'today'];
 
 let memoryFallback = new Map(); // als localStorage geblokkeerd is (privémodus)
 let localAvailable = null;
@@ -61,7 +61,7 @@ export const storage = {
     } else {
       memoryFallback.set(fullKey(key), raw);
     }
-    if (this.remote.enabled && typeof this.remote.save === 'function') {
+    if (key !== 'today' && this.remote.enabled && typeof this.remote.save === 'function') {
       // Bewust "fire and forget": een trage sync mag de UI nooit ophouden.
       Promise.resolve(this.remote.save(key, value)).catch(() => {});
     }

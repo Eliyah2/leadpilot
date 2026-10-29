@@ -4,9 +4,8 @@ npm-debug.log*
 yarn-error.log*
 
 # Geheimen - NOOIT committen
-.env
-.env.local
-.env.*.local
+.env*
+!.env.example
 *.pem
 *.key
 

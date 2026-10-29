@@ -21,18 +21,17 @@ const PUBLIC_DIR = path.join(ROOT, 'public');
 const API_DIR = path.join(ROOT, 'api');
 const PORT = Number(process.env.PORT) || 4321;
 
-// ── .env inlezen (eenvoudig, zonder library) ──────────────────────────────
-const envFile = path.join(ROOT, '.env');
-if (fs.existsSync(envFile)) {
+// Procesvariabelen hebben voorrang, daarna .env.local en ten slotte .env.
+for (const name of ['.env.local', '.env']) {
+  const envFile = path.join(ROOT, name);
+  if (!fs.existsSync(envFile)) continue;
   for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
     const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i);
     if (!match) continue;
     const value = match[2].replace(/^["']|["']$/g, '').trim();
     if (process.env[match[1]] === undefined) process.env[match[1]] = value;
   }
-  console.log('Bestand .env ingelezen.');
-} else {
-  console.log('Geen .env-bestand gevonden. De app werkt in demo-modus (Google Maps-links + CSV-import).');
+  console.log(`Bestand ${name} ingelezen.`);
 }
 
 const MIME = {

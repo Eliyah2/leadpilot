@@ -400,6 +400,7 @@ async function checkApi() {
   process.env.APP_PASSWORD = 'test-wachtwoord-123';
   process.env.ALLOW_PRIVATE_AUDIT_TARGETS = 'true';
   delete process.env.GOOGLE_PLACES_API_KEY;
+  delete process.env.GEOAPIFY_API_KEY;
   delete process.env.UPSTASH_REDIS_REST_URL;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
 
@@ -457,6 +458,7 @@ async function checkApi() {
     const health = await call('/api/health');
     assert(health.status === 200, `health gaf status ${health.status}`);
     assert(health.payload.checks.googlePlacesKey.includes('ontbreekt'), 'health meldt geen ontbrekende Places-sleutel');
+    assert(health.payload.checks.geoapifyKey.includes('ontbreekt'), 'health meldt geen ontbrekende Geoapify-sleutel');
     assert(health.payload.checks.appPassword.includes('ingesteld'), 'health meldt geen ingesteld wachtwoord');
     notes.push('health ok');
 
@@ -487,6 +489,39 @@ async function checkApi() {
     assert(viaCookie.payload.mode === 'demo', 'zonder API-sleutel hoort de app demo-modus te gebruiken');
     assert(Array.isArray(viaCookie.payload.searchLinks) && viaCookie.payload.searchLinks.length > 0, 'demo-modus geeft geen zoeklinks');
     notes.push('demo-modus ok');
+
+    const geoapifyDemo = await call('/api/leads', {
+      method: 'POST',
+      body: { q: 'kapper in Venlo', city: 'Venlo', niche: 'Kapper', nicheId: 'kapper', provider: 'geoapify' },
+      headers: { 'x-app-password': 'test-wachtwoord-123' },
+    });
+    assert(geoapifyDemo.status === 200 && geoapifyDemo.payload.provider === 'geoapify', 'Geoapify zonder sleutel hoort de setupstatus te melden');
+    assert(geoapifyDemo.payload.mode === 'demo' && /zonder bankpas/.test(geoapifyDemo.payload.message), 'Geoapify meldt onjuiste sleutel/setup-instructie');
+    assert(geoapifyDemo.payload.searchLinks?.[0]?.url === 'https://myprojects.geoapify.com/', 'Geoapify setup-link ontbreekt');
+    notes.push('Geoapify demo zonder sleutel ok');
+
+    // Een Geoapify-limiet meldt de oorzaak zonder interne berichten of de sleutel te lekken.
+    process.env.GEOAPIFY_API_KEY = 'test-credential';
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, options) => {
+      if (String(url).startsWith('https://api.geoapify.com/')) {
+        return new Response(JSON.stringify({ message: 'test-credential' }), { status: 429 });
+      }
+      return originalFetch(url, options);
+    };
+    try {
+      const quota = await call('/api/leads', {
+        method: 'POST',
+        body: { q: 'kapper Venlo', lat: 51.37, lng: 6.17, nicheId: 'kapper', provider: 'geoapify' },
+        headers: { 'x-app-password': 'test-wachtwoord-123' },
+      });
+      assert(quota.status === 429 && /Geoapify/.test(quota.payload.error?.message), 'Geoapify-limiet mist begrijpelijke melding');
+      assert(!JSON.stringify(quota.payload).includes('test-credential'), 'Geoapify-sleutel lekt in foutantwoord');
+      notes.push('Geoapify 429 en sleutelafscherming ok');
+    } finally {
+      globalThis.fetch = originalFetch;
+      delete process.env.GEOAPIFY_API_KEY;
+    }
 
     // Leads zonder zoekterm moet een nette 400 zijn.
     const noQuery = await call('/api/leads', {
@@ -597,6 +632,37 @@ async function checkApi() {
   return notes.join(', ');
 }
 
+// ── Dagelijks overzicht ─────────────────────────────────────────────────
+
+async function checkDailyLeads() {
+  const { dailyEmail, findDailyLeads, todayView } = await import('../public/js/views/today.js');
+  const { storage } = await import('../public/js/storage.js');
+  const settings = { nicheId: 'kapper', regionId: 'venlo', radiusKm: 10, languageMode: 'auto', customNiches: [], customRegions: [] };
+  const calls = [];
+  const fakeLead = (id, website = '') => ({ placeId: id, name: `Bedrijf ${id}`, city: 'Venlo', country: 'NL', website });
+  const first = Array.from({ length: 20 }, (_, i) => fakeLead(`oud${i}`));
+  const second = [fakeLead('site', 'https://example.com'), fakeLead('nieuw'), fakeLead('benaderd'), fakeLead('nieuw')];
+  const leads = await findDailyLeads({ settings, excluded: [...first.map((lead) => lead.placeId), 'benaderd'],
+    fetchLeads: async (params) => { calls.push(params); return { mode: 'live', leads: params.offset === 0 ? first : second }; },
+    audit: async () => ({ status: 'ok', checks: [{ id: 'viewport', status: 'bad' }] }),
+  });
+  assert(calls.length === 2 && calls.every((call) => call.pages === 1 && call.provider === 'geoapify'), 'dagelijks zoeken gebruikt verkeerde pagina of bron');
+  assert(leads.length === 2 && leads[0].placeId === 'nieuw' && leads[1].placeId === 'site', 'historie, dubbelen of websiteprioriteit niet correct');
+  const nl = dailyEmail(leads[0]);
+  assert(nl.body.includes('Bedrijf nieuw') && nl.body.includes('Venlo') && nl.body.includes('geen websitevermelding'), 'Nederlandse mail mist feitelijke personalisatie');
+  assert(nl.body.split(/\s+/).length <= 120 && nl.body.includes('https://eliyah-webdesign.vercel.app'), 'Nederlandse mail te lang of zonder handtekening');
+  const de = dailyEmail({ ...leads[1], country: 'DE', city: 'Krefeld' });
+  assert(de.body.includes('Krefeld') && de.body.includes('Viewport') && de.body.split(/\s+/).length <= 120, 'Duitse mail mist plaats, waarneming of is te lang');
+  const { todayISO } = await import('../public/js/utils.js');
+  storage.set('today', { date: todayISO(), seen: ['nieuw'], leads: [{ ...leads[0], dailyStatus: 'getoond' }] });
+  const state = { settings, leads: [] };
+  assert(String(todayView.render(state)).includes('Bedrijf nieuw') && String(todayView.render(state)).includes('Bedrijf nieuw'), 'daglijst blijft niet zichtbaar na opnieuw renderen');
+  state.leads = [{ placeId: 'nieuw', status: 'gemaild' }];
+  assert(!String(todayView.render(state)).includes('Bedrijf nieuw'), 'benaderd bedrijf verschijnt toch in daglijst');
+  storage.remove('today');
+  return 'historie, paginering, selectie, mobiele e-mail en stabiele daglijst';
+}
+
 // ── Uitvoeren ───────────────────────────────────────────────────────────
 
 console.log('LeadPilot - controle\n');
@@ -607,6 +673,11 @@ await check('Verborgen elementen echt verborgen', checkHiddenElements);
 await check('E-mailtemplates compleet', checkTemplates);
 await check('E-mails opbouwen en eisen', checkEmails);
 await check('Zoekplan, zoektermen en keten tot een lead per niche', checkAllNiches);
+await check('Dagelijkse leads en persoonlijke e-mails', checkDailyLeads);
+await check('Geoapify-categorieën en resultaten', async () => {
+  const { checkGeoapify } = await import('./check-niches.mjs');
+  return checkGeoapify();
+});
 await check('CSV export/import', checkCsv);
 await check('API-routes en beveiliging', checkApi);
 

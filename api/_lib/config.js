@@ -16,6 +16,9 @@ export function getConfig() {
   return {
     placesApiKey: (process.env.GOOGLE_PLACES_API_KEY ?? '').trim(),
     hasPlacesKey: Boolean((process.env.GOOGLE_PLACES_API_KEY ?? '').trim()),
+    geoapifyApiKey: (process.env.GEOAPIFY_API_KEY ?? '').trim(),
+    hasGeoapifyKey: Boolean((process.env.GEOAPIFY_API_KEY ?? '').trim()),
+    maxGeoapifyRequestsPerDay: intFromEnv('MAX_GEOAPIFY_REQUESTS_PER_DAY', 50),
     maxSearchesPerDay: intFromEnv('MAX_SEARCHES_PER_DAY', 100),
     maxAuditsPerDay: intFromEnv('MAX_AUDITS_PER_DAY', 200),
     searchCacheTtl: intFromEnv('SEARCH_CACHE_TTL_SECONDS', 86400),

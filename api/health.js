@@ -22,17 +22,20 @@ export default async function handler(req, res) {
     checks: {
       // Alleen ja/nee, nooit de waarde zelf.
       googlePlacesKey: config.hasPlacesKey ? 'ingesteld' : 'ontbreekt (demo-modus)',
+      geoapifyKey: config.hasGeoapifyKey ? 'ingesteld' : 'ontbreekt (Geoapify niet actief)',
       appPassword: authConfigured() ? 'ingesteld' : 'niet ingesteld (app is openbaar!)',
       cacheDriver: cache.driver,
       kvSync: config.hasRedis ? 'actief' : 'niet ingesteld (alleen localStorage)',
     },
     limits: {
       maxSearchesPerDay: config.maxSearchesPerDay,
+      maxGeoapifySearchesPerDay: config.maxGeoapifyRequestsPerDay,
       maxAuditsPerDay: config.maxAuditsPerDay,
       searchCacheTtlSeconds: config.searchCacheTtl,
     },
     usageToday: {
       searches: await peekDaily('searches'),
+      geoapifySearches: await peekDaily('geoapify_searches'),
       audits: await peekDaily('audits'),
     },
     authenticated: auth.ok,

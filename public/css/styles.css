@@ -130,6 +130,11 @@ body {
   line-height: 1.55;
 }
 
+/* Dagoverzicht: kaarten en knoppen blijven bruikbaar op smalle schermen. */
+.today-card { margin: 1rem 0; }
+.today-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: .75rem 0; }
+.today-email { white-space: pre-wrap; overflow-wrap: anywhere; }
+
 /* ── Algemene elementen ─────────────────────────────────────────────── */
 
 h1,
